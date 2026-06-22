@@ -18,7 +18,11 @@ services:
       dockerfile: docker/builder/Dockerfile
     image: rag-builder:latest
     environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in your shell or .env}
+      # Supply ONE of these (OAuth token wins). bootstrap.sh enforces presence.
+      #   - CLAUDE_CODE_OAUTH_TOKEN: Pro/Max subscription, from `claude setup-token`
+      #   - ANTHROPIC_API_KEY:       API billing
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       REPO_DIR: ${PWD}
       PHASE: ${PHASE:-}
       GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-RAG Builder}

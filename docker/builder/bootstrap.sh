@@ -6,8 +6,16 @@ set -euo pipefail
 
 cd "${REPO_DIR:-/repo}"
 
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
-  echo "ERROR: ANTHROPIC_API_KEY is not set. Export it or put it in .env." >&2
+# Authenticate via EITHER an OAuth token (Pro/Max subscription, from
+# `claude setup-token`) OR an API key (API billing). OAuth takes precedence.
+if [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]]; then
+  echo "✓ Authenticating with CLAUDE_CODE_OAUTH_TOKEN (subscription)."
+  unset ANTHROPIC_API_KEY   # avoid ambiguity; OAuth wins
+elif [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+  echo "✓ Authenticating with ANTHROPIC_API_KEY (API billing)."
+else
+  echo "ERROR: no credentials. Set CLAUDE_CODE_OAUTH_TOKEN (from 'claude setup-token')" >&2
+  echo "       or ANTHROPIC_API_KEY — export it or put it in .env." >&2
   exit 1
 fi
 

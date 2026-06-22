@@ -16,7 +16,9 @@ testing, and committing one phase at a time. Running the agent inside Docker mea
 `--dangerously-skip-permissions` safely (it is sandboxed) and verify everything docker-first.
 
 ```bash
-# from /home/alex/work/RAG, with ANTHROPIC_API_KEY exported
+# from /home/alex/work/RAG, authenticated with ONE of (OAuth token wins):
+#   export CLAUDE_CODE_OAUTH_TOKEN=...   # Pro/Max subscription, via `claude setup-token`
+#   export ANTHROPIC_API_KEY=sk-ant-...  # API billing
 docker compose -f docker-compose.builder.yml run --rm builder
 ```
 
