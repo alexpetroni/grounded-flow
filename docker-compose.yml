@@ -51,7 +51,7 @@ services:
       DATABASE_URL: postgresql://rag:rag@postgres:5432/rag
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
-    command: ["node", "-e", "console.log('migrations placeholder — implemented in Phase 3')"]
+    command: ["node", "scripts/migrate.js"]
     depends_on:
       postgres:
         condition: service_healthy

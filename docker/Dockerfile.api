@@ -37,6 +37,8 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=build --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --chown=nestjs:nodejs package.json .
+COPY --chown=nestjs:nodejs docker/migrations ./docker/migrations
+COPY --chown=nestjs:nodejs scripts/migrate.js ./scripts/migrate.js
 
 USER nestjs
 EXPOSE 8080

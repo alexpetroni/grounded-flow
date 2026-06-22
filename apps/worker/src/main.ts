@@ -9,12 +9,8 @@ async function bootstrap() {
   await app.init();
   console.log('Worker started');
 
-  // Keep the event loop alive until BullMQ processors are added in Phase 2.
-  const keepAlive = setInterval(() => {}, 30_000);
-
   const shutdown = async (signal: string) => {
     console.log(`Received ${signal}, shutting down worker`);
-    clearInterval(keepAlive);
     await app.close();
     process.exit(0);
   };
