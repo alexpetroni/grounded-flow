@@ -17,9 +17,10 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
  && rm -rf /var/lib/apt/lists/*
 
-# pnpm + Claude Code
+# pnpm (via corepack) + Claude Code
 RUN corepack enable \
- && npm install -g pnpm @anthropic-ai/claude-code
+ && corepack prepare pnpm@latest --activate \
+ && npm install -g @anthropic-ai/claude-code
 
 COPY docker/builder/bootstrap.sh /usr/local/bin/bootstrap.sh
 RUN chmod +x /usr/local/bin/bootstrap.sh
