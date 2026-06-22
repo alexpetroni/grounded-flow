@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2022",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "strict": true,
+    "paths": {
+      "@app/config": ["libs/config/src/index.ts"],
+      "@app/config/*": ["libs/config/src/*"],
+      "@app/core": ["libs/core/src/index.ts"],
+      "@app/core/*": ["libs/core/src/*"],
+      "@app/llm": ["libs/llm/src/index.ts"],
+      "@app/llm/*": ["libs/llm/src/*"],
+      "@app/rag": ["libs/rag/src/index.ts"],
+      "@app/rag/*": ["libs/rag/src/*"],
+      "@app/database": ["libs/database/src/index.ts"],
+      "@app/database/*": ["libs/database/src/*"],
+      "@app/observability": ["libs/observability/src/index.ts"],
+      "@app/observability/*": ["libs/observability/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+}

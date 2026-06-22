@@ -1,0 +1,42 @@
+FROM node:24-bookworm-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/api/package.json apps/api/
+COPY apps/worker/package.json apps/worker/
+COPY libs/config/package.json libs/config/
+COPY libs/core/package.json libs/core/
+COPY libs/llm/package.json libs/llm/
+COPY libs/rag/package.json libs/rag/
+COPY libs/database/package.json libs/database/
+COPY libs/observability/package.json libs/observability/
+
+# ── deps ──────────────────────────────────────────────────────────────────────
+FROM base AS deps
+RUN pnpm install --frozen-lockfile
+
+# ── build ─────────────────────────────────────────────────────────────────────
+FROM deps AS build
+COPY . .
+ENV CI=true
+RUN pnpm install --frozen-lockfile && pnpm exec nest build worker
+
+# ── runtime ───────────────────────────────────────────────────────────────────
+FROM node:24-bookworm-slim AS runtime
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+WORKDIR /app
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
+
+COPY --from=build --chown=nestjs:nodejs /app/dist ./dist
+COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --chown=nestjs:nodejs package.json .
+
+USER nestjs
+CMD ["node", "dist/apps/worker/main"]

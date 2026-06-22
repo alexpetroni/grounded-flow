@@ -1,0 +1,21 @@
+# Dev overlay — use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  api:
+    build:
+      target: build
+    command: ["node", "--watch", "dist/apps/api/main"]
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development
+
+  worker:
+    build:
+      target: build
+    command: ["node", "--watch", "dist/apps/worker/main"]
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      NODE_ENV: development

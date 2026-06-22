@@ -6,7 +6,7 @@ FROM node:24-bookworm
 # Docker CLI + compose plugin (talks to the host daemon via the mounted socket)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg git jq \
+      ca-certificates curl gnupg git jq gosu \
  && install -m 0755 -d /etc/apt/keyrings \
  && curl -fsSL https://download.docker.com/linux/debian/gpg \
       | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \

@@ -1,0 +1,9 @@
+{
+  "name": "@rag/api",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@rag/config": "workspace:*",
+    "pg": "^8.13.0"
+  }
+}

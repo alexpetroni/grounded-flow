@@ -1,0 +1,55 @@
+{
+  "name": "rag-platform",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "build": "nest build",
+    "lint": "eslint \"{apps,libs}/**/*.ts\" --max-warnings 0",
+    "format": "prettier --write \"{apps,libs,test}/**/*.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/worker/tsconfig.json --noEmit",
+    "test": "vitest run --project unit --project integration",
+    "test:watch": "vitest --project unit",
+    "test:e2e": "vitest run --project e2e",
+    "test:cov": "vitest run --coverage --project unit --project integration",
+    "eval": "echo 'eval harness not yet implemented'",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^6.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.0.0",
+    "supertest": "^7.0.0",
+    "ts-loader": "^9.6.1",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^3.0.0",
+    "webpack": "^5.107.2",
+    "webpack-node-externals": "^3.0.0"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.22.0",
+    "redis": "^6.0.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0",
+    "zod": "^3.23.0"
+  }
+}
