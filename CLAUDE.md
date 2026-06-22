@@ -27,6 +27,9 @@ Docker, that fixes every weak spot of the reference Python `genai-launchpad` (se
    (see §Regression checklist). Do not reintroduce them.
 7. **Conventional commits, one per phase minimum.** `feat(core): …`, `test(rag): …`,
    `chore(ci): …`. Commit only when the working tree's checks pass. Never commit secrets.
+   **Never read, write, or delete `.env.builder`** — it holds the build agent's own
+   credentials and is owned by the human operator, not you. The app stack uses `.env`
+   (you may copy it from `.env.example`); leave `.env.builder` untouched.
 8. **Stop and report on a blocked DoD.** If a phase cannot meet its DoD (e.g. a dependency is
    broken), stop, summarize the blocker and what was tried, and do not fake green.
 

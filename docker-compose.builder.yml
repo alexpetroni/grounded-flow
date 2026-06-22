@@ -17,12 +17,16 @@ services:
       context: .
       dockerfile: docker/builder/Dockerfile
     image: rag-builder:latest
+    # Builder credentials live in .env.builder (gitignored), SEPARATE from the
+    # app's .env — so the build agent can freely manage .env (it copies from
+    # .env.example to boot the stack) without clobbering the builder token.
+    # Put ONE of these in .env.builder (OAuth wins):
+    #   CLAUDE_CODE_OAUTH_TOKEN=...   (subscription, via `claude setup-token`)
+    #   ANTHROPIC_API_KEY=...         (API billing)
+    env_file:
+      - path: .env.builder
+        required: false
     environment:
-      # Supply ONE of these (OAuth token wins). bootstrap.sh enforces presence.
-      #   - CLAUDE_CODE_OAUTH_TOKEN: Pro/Max subscription, from `claude setup-token`
-      #   - ANTHROPIC_API_KEY:       API billing
-      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       REPO_DIR: ${PWD}
       PHASE: ${PHASE:-}
       GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-RAG Builder}
