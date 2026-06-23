@@ -7,3 +7,5 @@ export { WorkflowRegistry } from './workflow-registry';
 export { WorkflowValidator, WorkflowValidationError } from './validator';
 export type { NodeConfig, WorkflowSchema } from './workflow-schema';
 export { CoreModule } from './core.module';
+export type { StreamingNode } from './streaming-node.interface';
+export { isStreamingNode } from './streaming-node.interface';

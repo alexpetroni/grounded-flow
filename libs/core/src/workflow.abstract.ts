@@ -4,6 +4,7 @@ import type { NodeConfig, WorkflowSchema } from './workflow-schema';
 import { WorkflowValidator } from './validator';
 import { BaseRouter } from './router.abstract';
 import type { Node } from './node.abstract';
+import { isStreamingNode } from './streaming-node.interface';
 
 @Injectable()
 export abstract class Workflow {
@@ -43,10 +44,18 @@ export abstract class Workflow {
     while (currentToken !== null && !ctx.shouldStop) {
       const config = nodeMap.get(currentToken);
       if (!config) throw new Error(`Node not found: "${currentToken}"`);
-      currentToken = await this.dispatch(config, nodeMap, ctx);
+
+      if (isStreamingNode(config.node) && !config.isRouter && !config.concurrentNodes?.length) {
+        try {
+          yield* config.node.processStream(ctx);
+        } finally {
+          await config.node.cleanup();
+        }
+        currentToken = config.connections[0] ?? null;
+      } else {
+        currentToken = await this.dispatch(config, nodeMap, ctx);
+      }
     }
-    // Phase 3 will replace this with per-node streaming chunks
-    yield* [];
   }
 
   private async dispatch(
