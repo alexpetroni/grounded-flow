@@ -1,0 +1,29 @@
+Retrieval-Augmented Generation (RAG) Overview
+
+Retrieval-Augmented Generation, commonly known as RAG, is an AI framework that combines the strengths of retrieval-based and generative AI systems.
+
+How RAG Works
+
+RAG works in two main phases: retrieval and generation. During the retrieval phase, relevant documents or passages are fetched from a knowledge base using semantic search. During the generation phase, a language model uses those retrieved passages as context to generate accurate, grounded responses.
+
+Components of a RAG System
+
+A typical RAG system consists of several key components:
+
+1. Document Ingestion Pipeline: This processes raw documents into searchable chunks. It involves loading documents from various sources, splitting them into manageable pieces, generating embeddings for each chunk, and storing vectors in a vector database.
+
+2. Embedding Model: Converts text into dense vector representations that capture semantic meaning. Common embedding models include OpenAI text-embedding-3-small, Cohere Embed, and open-source alternatives like sentence-transformers.
+
+3. Vector Database: Stores and efficiently searches through high-dimensional vectors. Popular vector databases include Qdrant, Pinecone, Weaviate, and Milvus.
+
+4. Retrieval System: Given a query, retrieves the most semantically similar chunks. Modern systems use hybrid search combining dense and sparse vectors for better coverage.
+
+5. Language Model: Takes the retrieved context and generates a coherent, contextually accurate response.
+
+Benefits of RAG
+
+RAG provides several advantages over pure language models: it reduces hallucinations by grounding responses in retrieved facts, enables use of up-to-date information without retraining, provides citations and source attribution, and allows for domain-specific knowledge bases.
+
+Challenges and Limitations
+
+Despite its advantages, RAG faces challenges including the quality of retrieved documents directly impacting generation quality, latency from multiple retrieval steps, and the difficulty of handling multi-hop reasoning across documents.

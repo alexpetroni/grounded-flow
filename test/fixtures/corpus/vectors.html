@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vector Databases Explained</title>
+  <style>body { font-family: sans-serif; }</style>
+</head>
+<body>
+  <h1>Vector Databases</h1>
+  <p>A vector database is a type of database that stores and retrieves data as high-dimensional vectors, which are mathematical representations of features or attributes.</p>
+
+  <h2>How They Work</h2>
+  <p>Vector databases use specialized indexing techniques such as HNSW (Hierarchical Navigable Small World graphs) and IVF (Inverted File Index) to enable fast approximate nearest neighbor search across millions of vectors.</p>
+
+  <h2>Key Features</h2>
+  <ul>
+    <li><strong>Similarity Search</strong>: Find vectors most similar to a query vector using distance metrics like cosine similarity, dot product, or Euclidean distance.</li>
+    <li><strong>Hybrid Search</strong>: Combine dense and sparse vector search for better retrieval quality.</li>
+    <li><strong>Filtering</strong>: Apply metadata filters alongside vector search to narrow results.</li>
+    <li><strong>Scalability</strong>: Handle billions of vectors with low latency.</li>
+  </ul>
+
+  <h2>Popular Vector Databases</h2>
+  <p>Qdrant is an open-source vector database written in Rust, known for its performance and native support for named vectors and sparse vectors. Pinecone is a managed cloud vector database. Weaviate is an open-source vector database that supports multiple modalities.</p>
+
+  <h2>Use Cases</h2>
+  <p>Vector databases power many AI applications including semantic search, recommendation systems, anomaly detection, and retrieval-augmented generation (RAG) systems for large language models.</p>
+</body>
+</html>

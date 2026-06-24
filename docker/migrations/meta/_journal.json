@@ -8,6 +8,13 @@
       "when": 1782158936599,
       "tag": "0000_tearful_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782284766737,
+      "tag": "0001_heavy_adam_warlock",
+      "breakpoints": true
     }
   ]
 }
