@@ -29,6 +29,8 @@ function makeVectorStore(): VectorStore {
     upsert: vi.fn().mockResolvedValue(undefined),
     deleteByDocumentId: vi.fn().mockResolvedValue(undefined),
     search: vi.fn().mockResolvedValue([]),
+    searchDense: vi.fn().mockResolvedValue([]),
+    searchSparse: vi.fn().mockResolvedValue([]),
   };
 }
 

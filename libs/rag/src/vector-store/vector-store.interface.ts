@@ -19,6 +19,18 @@ export interface VectorStore {
     topK: number,
     filter?: Record<string, unknown>,
   ): Promise<SearchResult[]>;
+  /** Dense-only ANN search, returned in descending score order. */
+  searchDense(
+    dense: number[],
+    limit: number,
+    filter?: Record<string, unknown>,
+  ): Promise<SearchResult[]>;
+  /** Sparse-only search, returned in descending score order. */
+  searchSparse(
+    sparse: { indices: number[]; values: number[] },
+    limit: number,
+    filter?: Record<string, unknown>,
+  ): Promise<SearchResult[]>;
 }
 
 export interface SearchResult {

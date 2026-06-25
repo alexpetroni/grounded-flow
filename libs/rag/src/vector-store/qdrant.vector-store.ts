@@ -98,18 +98,53 @@ export class QdrantVectorStore implements VectorStore {
       ...(qdrantFilter ? { filter: qdrantFilter } : {}),
     });
 
-    return results.points.map((p) => {
-      const payload = p.payload as Record<string, unknown>;
-      return {
-        chunkId: payload['chunkId'] as string,
-        documentId: payload['documentId'] as string,
-        ordinal: payload['ordinal'] as number,
-        text: payload['text'] as string,
-        metadata: (payload['metadata'] as Record<string, unknown>) ?? {},
-        score: p.score,
-      };
-    });
+    return results.points.map(mapPoint);
   }
+
+  async searchDense(
+    dense: number[],
+    limit: number,
+    filter?: Record<string, unknown>,
+  ): Promise<SearchResult[]> {
+    const qdrantFilter = filter ? buildFilter(filter) : undefined;
+    const results = await this.client.query(this.collectionName, {
+      query: dense,
+      using: DENSE_VECTOR,
+      limit,
+      with_payload: true,
+      ...(qdrantFilter ? { filter: qdrantFilter } : {}),
+    });
+    return results.points.map(mapPoint);
+  }
+
+  async searchSparse(
+    sparse: { indices: number[]; values: number[] },
+    limit: number,
+    filter?: Record<string, unknown>,
+  ): Promise<SearchResult[]> {
+    if (sparse.indices.length === 0) return [];
+    const qdrantFilter = filter ? buildFilter(filter) : undefined;
+    const results = await this.client.query(this.collectionName, {
+      query: { indices: sparse.indices, values: sparse.values },
+      using: SPARSE_VECTOR,
+      limit,
+      with_payload: true,
+      ...(qdrantFilter ? { filter: qdrantFilter } : {}),
+    });
+    return results.points.map(mapPoint);
+  }
+}
+
+function mapPoint(p: { payload?: Record<string, unknown> | null; score: number }): SearchResult {
+  const payload = (p.payload ?? {}) as Record<string, unknown>;
+  return {
+    chunkId: payload['chunkId'] as string,
+    documentId: payload['documentId'] as string,
+    ordinal: payload['ordinal'] as number,
+    text: payload['text'] as string,
+    metadata: (payload['metadata'] as Record<string, unknown>) ?? {},
+    score: p.score,
+  };
 }
 
 function chunkIdToUint(chunkId: string): string {

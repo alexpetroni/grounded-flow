@@ -1,10 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import type { EmbeddingModel } from 'ai';
 import { DatabaseModule } from '@app/database';
 import { DocumentsRepository, ChunksRepository } from '@app/database';
-import { createEmbeddingModel } from '@app/llm';
+import { createEmbeddingModel, LlmModule, LlmService } from '@app/llm';
 import type { Env } from '@app/config';
 import { AiSdkEmbedder } from './embedder/ai-sdk.embedder';
 import { QdrantVectorStore } from './vector-store/qdrant.vector-store';
@@ -13,11 +13,25 @@ import {
   EMBEDDER_TOKEN,
   VECTOR_STORE_TOKEN,
 } from './ingestion/ingestion.service';
+import { HybridRetriever } from './retrieval/hybrid-retriever';
+import type { Embedder } from './embedder/embedder.interface';
+import type { VectorStore } from './vector-store/vector-store.interface';
+import type { Retriever } from './retrieval/retriever.interface';
+import type { Reranker } from './rerank/reranker.interface';
+import { PassthroughReranker } from './rerank/passthrough.reranker';
+import { CohereReranker } from './rerank/cohere.reranker';
+import { RagAnswerNode } from './generation/rag-answer.node';
+import { RagQueryService, type RagQueryDefaults } from './query/rag-query.service';
+import {
+  RETRIEVER_TOKEN,
+  RERANKER_TOKEN,
+  RAG_QUERY_DEFAULTS_TOKEN,
+} from './query/rag-query.tokens';
 
 export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, LlmModule],
   providers: [
     {
       provide: QDRANT_CLIENT_TOKEN,
@@ -92,7 +106,69 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
         ConfigService,
       ],
     },
+    {
+      provide: RETRIEVER_TOKEN,
+      useFactory: (vectorStore: VectorStore, config: ConfigService<Env, true>): Retriever => {
+        const topK = config.get('RAG_TOP_K', { infer: true });
+        return new HybridRetriever(vectorStore, topK);
+      },
+      inject: [VECTOR_STORE_TOKEN, ConfigService],
+    },
+    {
+      provide: RERANKER_TOKEN,
+      useFactory: (config: ConfigService<Env, true>): Reranker => {
+        const provider = config.get('RERANK_PROVIDER', { infer: true });
+        const apiKey = config.get('COHERE_API_KEY', { infer: true });
+        if (provider === 'cohere' && apiKey) {
+          return new CohereReranker({ apiKey });
+        }
+        // Graceful degradation: no rerank key → keep retrieval order.
+        new Logger(RagModule.name).warn(
+          `Reranker "${provider}" unavailable (missing key); using passthrough order`,
+        );
+        return new PassthroughReranker();
+      },
+      inject: [ConfigService],
+    },
+    {
+      provide: RAG_QUERY_DEFAULTS_TOKEN,
+      useFactory: (config: ConfigService<Env, true>): RagQueryDefaults => ({
+        topK: config.get('RAG_TOP_K', { infer: true }),
+        topN: config.get('RAG_RERANK_TOP_N', { infer: true }),
+      }),
+      inject: [ConfigService],
+    },
+    {
+      provide: RagAnswerNode,
+      useFactory: (llmService: LlmService) => new RagAnswerNode(llmService),
+      inject: [LlmService],
+    },
+    {
+      provide: RagQueryService,
+      useFactory: (
+        embedder: Embedder,
+        retriever: Retriever,
+        reranker: Reranker,
+        answerNode: RagAnswerNode,
+        defaults: RagQueryDefaults,
+      ) => new RagQueryService(embedder, retriever, reranker, answerNode, defaults),
+      inject: [
+        EMBEDDER_TOKEN,
+        RETRIEVER_TOKEN,
+        RERANKER_TOKEN,
+        RagAnswerNode,
+        RAG_QUERY_DEFAULTS_TOKEN,
+      ],
+    },
   ],
-  exports: [IngestionService, EMBEDDER_TOKEN, VECTOR_STORE_TOKEN, QDRANT_CLIENT_TOKEN],
+  exports: [
+    IngestionService,
+    EMBEDDER_TOKEN,
+    VECTOR_STORE_TOKEN,
+    QDRANT_CLIENT_TOKEN,
+    RETRIEVER_TOKEN,
+    RERANKER_TOKEN,
+    RagQueryService,
+  ],
 })
 export class RagModule {}
