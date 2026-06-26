@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 import type { Queue } from 'bullmq';
 import { DocumentsRepository } from '@app/database';
 import type { Document } from '@app/database';
+import type { Env } from '@app/config';
 import { SUPPORTED_MIME_TYPES } from '@app/rag';
 import type { CreateDocumentDto } from './documents.dto';
 import { CreateDocumentDto as CreateDocumentSchema } from './documents.dto';
@@ -22,6 +24,7 @@ export class DocumentsService {
   constructor(
     private readonly documentsRepository: DocumentsRepository,
     @InjectQueue(INGEST_QUEUE) private readonly ingestQueue: Queue<IngestJobData>,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async create(body: unknown): Promise<{ id: string; status: string }> {
@@ -51,8 +54,11 @@ export class DocumentsService {
         metadata: dto.metadata,
       },
       {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 },
+        attempts: this.config.get('BULLMQ_ATTEMPTS', { infer: true }),
+        backoff: {
+          type: 'exponential',
+          delay: this.config.get('BULLMQ_BACKOFF_MS', { infer: true }),
+        },
         removeOnComplete: 100,
         removeOnFail: 100,
       },

@@ -5,8 +5,10 @@ run fully isolated in Docker. It is a cleaner reimagining of the Python `genai-l
 the same declarative DAG workflow engine, but async-correct, fully tested, and with real
 retrieval (ingestion → chunking → hybrid search → reranking → grounded citations → eval).
 
-**Status: not started — Phase 0.** This repository currently contains only the build plan.
-The application is produced by executing the phases below, in order.
+**Status: complete — Phases 0–6 built.** All phases are implemented, tested, and committed: the
+workflow engine, LLM layer, RAG ingestion, hybrid retrieval + reranking + grounded citations, an
+eval harness, observability, worker/API hardening, and the end-to-end smoke. See
+**[Verification](#verification-the-workable-product-gate)** to run it.
 
 ## How this repo is built
 
@@ -89,6 +91,31 @@ pnpm test:e2e                   # full-stack happy path, providers mocked
 bash scripts/smoke.sh           # end-to-end: health → event → ingest → grounded RAG query → stream (exit 0)
 pnpm eval                       # RAG quality vs baseline (needs API keys)
 ```
+
+## API surface
+
+| Method & path | Purpose |
+|---|---|
+| `GET /health` | Liveness + dependency status (postgres/redis/qdrant) |
+| `POST /events` · `GET /events/:id` | Submit a workflow event (async) and poll its status + result |
+| `POST /documents` · `GET /documents/:id` | Ingest a document (base64) and poll ingestion status |
+| `POST /rag/query` | Hybrid retrieve → rerank → grounded, cited answer |
+| `POST /v1/chat/completions` | OpenAI-compatible streaming chat (SSE) |
+
+All bodies are Zod-validated. A payload-size limit (`API_BODY_LIMIT`), an optional in-memory
+rate limiter (`RATE_LIMIT_MAX`, off by default), and an optional API-key guard (`API_KEY`, off by
+default) are wired as global guards. Missing provider keys degrade the relevant capability with a
+warning rather than crashing boot.
+
+## Observability & eval
+
+- **Tracing** (`libs/observability`): a dependency-free tracing facade that is a **NoOp until both
+  `LANGFUSE_*` keys are set**, at which point spans (workflow/per-node) are exported through a
+  pluggable `SpanExporter` — the seam where a Langfuse/OpenTelemetry exporter attaches.
+- **Eval** (`pnpm eval`): runs the dataset in `test/eval/dataset.jsonl` against an ephemeral
+  Qdrant, computing **recall@5 / MRR / context precision** (faithfulness via LLM-judge is opt-in
+  with keys). It records `test/eval/baseline.json` and **ratchets** against it; thresholds
+  (recall@5 ≥ 0.85, MRR ≥ 0.7) are enforced. It is separate from blocking CI.
 
 ## Prerequisites
 

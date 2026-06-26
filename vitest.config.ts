@@ -67,6 +67,17 @@ export default defineConfig({
         },
         resolve: { alias: aliases },
       },
+      {
+        plugins: [swcPlugin],
+        test: {
+          // Opt-in RAG quality eval (real providers optional). Not in blocking CI.
+          name: 'eval',
+          include: ['test/eval/**/*.eval.spec.ts'],
+          environment: 'node',
+          testTimeout: 120000,
+        },
+        resolve: { alias: aliases },
+      },
     ],
   },
 });

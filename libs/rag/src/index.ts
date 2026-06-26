@@ -59,3 +59,16 @@ export {
   RERANKER_TOKEN,
   RAG_QUERY_DEFAULTS_TOKEN,
 } from './query/rag-query.tokens';
+
+// Eval metrics + ratchet
+export {
+  recallAtK,
+  reciprocalRank,
+  meanReciprocalRank,
+  contextPrecisionAtK,
+  aggregate,
+  mean,
+} from './eval/metrics';
+export type { RankedRelevance, EvalMetrics } from './eval/metrics';
+export { checkRatchet, checkThresholds } from './eval/ratchet';
+export type { CheckResult } from './eval/ratchet';

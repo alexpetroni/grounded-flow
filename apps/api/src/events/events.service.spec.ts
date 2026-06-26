@@ -14,8 +14,13 @@ const mockQueue = {
   add: vi.fn().mockResolvedValue({ id: 'job-1' }),
 };
 
+const mockConfig = {
+  get: (key: string) =>
+    key === 'BULLMQ_ATTEMPTS' ? 3 : key === 'BULLMQ_BACKOFF_MS' ? 1000 : undefined,
+};
+
 function makeService() {
-  return new EventsService(mockRepo as never, mockQueue as never);
+  return new EventsService(mockRepo as never, mockQueue as never, mockConfig as never);
 }
 
 describe('EventsService', () => {

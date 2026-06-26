@@ -21,6 +21,29 @@ const FAKE_USAGE = {
   },
 };
 
+function looksLikeJson(text: string): boolean {
+  const t = text.trim();
+  return t.startsWith('{') || t.startsWith('[');
+}
+
+interface DoGenerateOptions {
+  responseFormat?: { type: string };
+}
+
+/**
+ * Coerce a plain text response into structured JSON when the caller is using
+ * object generation (`generateObject`). Wrapping the text as
+ * `{ answer, citations: [], confidence }` lets the default fake satisfy the RAG
+ * answer schema (extra fields are stripped by stricter Zod schemas), so the
+ * fake-provider boot path can serve `/rag/query` deterministically with no keys.
+ */
+function coerceResponse(raw: string, opts?: DoGenerateOptions): string {
+  if (opts?.responseFormat?.type === 'json' && !looksLikeJson(raw)) {
+    return JSON.stringify({ answer: raw, citations: [], confidence: 0.5 });
+  }
+  return raw;
+}
+
 export function createFakeLanguageModel(options: FakeLanguageModelOptions = {}): LanguageModel {
   const responses = options.responses ?? ['Hello from fake provider.'];
   let callCount = 0;
@@ -29,8 +52,8 @@ export function createFakeLanguageModel(options: FakeLanguageModelOptions = {}):
     provider: 'fake',
     modelId: 'fake-model',
     // Cast via unknown to bypass strict LanguageModelV3GenerateResult typing in mock constructor
-    doGenerate: (async () => {
-      const text = responses[Math.min(callCount++, responses.length - 1)];
+    doGenerate: (async (opts: DoGenerateOptions) => {
+      const text = coerceResponse(responses[Math.min(callCount++, responses.length - 1)]!, opts);
       return {
         content: [{ type: 'text' as const, text }],
         finishReason: STOP_FINISH_REASON,

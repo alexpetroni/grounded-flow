@@ -1,0 +1,16 @@
+# Smoke/demo override: forces deterministic fake providers so the end-to-end
+# smoke runs with no API keys. Compose with:
+#   docker compose -f docker-compose.yml -f docker-compose.smoke.yml up -d --build
+services:
+  api:
+    environment:
+      LLM_PROVIDER: fake
+      LLM_MODEL: fake-model
+      EMBEDDING_PROVIDER: fake
+      EMBEDDING_MODEL: fake-embedding
+  worker:
+    environment:
+      LLM_PROVIDER: fake
+      LLM_MODEL: fake-model
+      EMBEDDING_PROVIDER: fake
+      EMBEDDING_MODEL: fake-embedding

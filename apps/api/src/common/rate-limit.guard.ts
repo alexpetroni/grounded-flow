@@ -1,0 +1,61 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Request } from 'express';
+import type { Env } from '@app/config';
+
+interface Bucket {
+  count: number;
+  resetAt: number;
+}
+
+/**
+ * Simple in-memory fixed-window rate limiter keyed by client IP. Disabled by
+ * default (`RATE_LIMIT_MAX=0`). Intended as a lightweight safety net; a
+ * distributed deployment would back this with Redis, but the guard seam stays
+ * the same.
+ */
+@Injectable()
+export class RateLimitGuard implements CanActivate {
+  private readonly buckets = new Map<string, Bucket>();
+
+  constructor(
+    private readonly config: ConfigService<Env, true>,
+    // Not a DI token — @Optional() lets Nest pass undefined so the default applies;
+    // tests inject a deterministic clock.
+    @Optional() private readonly now: () => number = () => Date.now(),
+  ) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const max = this.config.get('RATE_LIMIT_MAX', { infer: true });
+    if (!max || max <= 0) return true; // disabled
+
+    const windowMs = this.config.get('RATE_LIMIT_WINDOW_MS', { infer: true });
+    const req = context.switchToHttp().getRequest<Request>();
+    const key = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
+    const now = this.now();
+
+    const bucket = this.buckets.get(key);
+    if (!bucket || now >= bucket.resetAt) {
+      this.buckets.set(key, { count: 1, resetAt: now + windowMs });
+      return true;
+    }
+
+    if (bucket.count >= max) {
+      const retryAfter = Math.ceil((bucket.resetAt - now) / 1000);
+      throw new HttpException(
+        { message: 'Too many requests', retryAfter },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    bucket.count += 1;
+    return true;
+  }
+}

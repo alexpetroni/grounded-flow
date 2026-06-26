@@ -7,6 +7,7 @@ import { DocumentsRepository, ChunksRepository } from '@app/database';
 import { createEmbeddingModel, LlmModule, LlmService } from '@app/llm';
 import type { Env } from '@app/config';
 import { AiSdkEmbedder } from './embedder/ai-sdk.embedder';
+import { FakeEmbedder } from './embedder/fake.embedder';
 import { QdrantVectorStore } from './vector-store/qdrant.vector-store';
 import {
   IngestionService,
@@ -47,6 +48,11 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
       useFactory: (config: ConfigService<Env, true>) => {
         const provider = config.get('EMBEDDING_PROVIDER', { infer: true });
         const modelId = config.get('EMBEDDING_MODEL', { infer: true });
+        // Deterministic fake embedder for keyless / test / smoke runs.
+        // Use the standard 1536 dims so collections stay dimension-compatible.
+        if (provider === 'fake') {
+          return new FakeEmbedder(1536);
+        }
         try {
           const model = createEmbeddingModel({
             provider,

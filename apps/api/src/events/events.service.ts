@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { ZodError } from 'zod';
 import { EventsRepository } from '@app/database';
+import type { Env } from '@app/config';
 import { createEventSchema, type CreateEventDto, type EventResponseDto } from './events.dto';
 
 export const EVENTS_QUEUE = 'events';
@@ -12,6 +14,7 @@ export class EventsService {
   constructor(
     private readonly eventsRepository: EventsRepository,
     @InjectQueue(EVENTS_QUEUE) private readonly eventsQueue: Queue,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async create(body: unknown): Promise<{ eventId: string; status: string }> {
@@ -37,8 +40,11 @@ export class EventsService {
       'process',
       { eventId: event.id },
       {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 1000 },
+        attempts: this.config.get('BULLMQ_ATTEMPTS', { infer: true }),
+        backoff: {
+          type: 'exponential',
+          delay: this.config.get('BULLMQ_BACKOFF_MS', { infer: true }),
+        },
         removeOnComplete: false,
         removeOnFail: false,
       },

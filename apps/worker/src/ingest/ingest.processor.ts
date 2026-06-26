@@ -2,6 +2,8 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { IngestionService } from '@app/rag';
+import { DeadLetterService } from '../dead-letter.service';
+import { workerConcurrency } from '../worker.config';
 
 export const INGEST_QUEUE = 'ingest';
 
@@ -13,11 +15,14 @@ interface IngestJobData {
   metadata: Record<string, unknown>;
 }
 
-@Processor(INGEST_QUEUE)
+@Processor(INGEST_QUEUE, { concurrency: workerConcurrency() })
 export class IngestProcessor extends WorkerHost {
   private readonly logger = new Logger(IngestProcessor.name);
 
-  constructor(private readonly ingestionService: IngestionService) {
+  constructor(
+    private readonly ingestionService: IngestionService,
+    private readonly deadLetter: DeadLetterService,
+  ) {
     super();
   }
 
@@ -38,8 +43,16 @@ export class IngestProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job<IngestJobData> | undefined, err: Error): void {
-    const documentId = job?.data?.documentId ?? 'unknown';
-    this.logger.error(`Ingest job failed permanently for document ${documentId}: ${err.message}`);
+  async onFailed(job: Job<IngestJobData> | undefined, err: Error): Promise<void> {
+    if (!job) return;
+    const documentId = job.data?.documentId ?? 'unknown';
+    if (this.deadLetter.isTerminal(job)) {
+      this.logger.error(`Ingest job failed permanently for document ${documentId}: ${err.message}`);
+      await this.deadLetter.deadLetter(INGEST_QUEUE, job, err);
+    } else {
+      this.logger.warn(
+        `Ingest job for document ${documentId} failed (attempt ${job.attemptsMade}); will retry: ${err.message}`,
+      );
+    }
   }
 }

@@ -15,7 +15,7 @@
     "test:watch": "vitest --project unit",
     "test:e2e": "vitest run --project e2e",
     "test:cov": "vitest run --coverage --project unit --project integration",
-    "eval": "echo 'eval harness not yet implemented'",
+    "eval": "vitest run --project eval",
     "db:migrate": "drizzle-kit migrate"
   },
   "devDependencies": {
