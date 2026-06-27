@@ -1,4 +1,6 @@
 import type { NodeConfig, WorkflowSchema } from './workflow-schema';
+import type { WorkflowRegistry } from './workflow-registry';
+import { isSubWorkflowReference } from './sub-workflow-node';
 
 export class WorkflowValidationError extends Error {
   constructor(message: string) {
@@ -8,7 +10,12 @@ export class WorkflowValidationError extends Error {
 }
 
 export class WorkflowValidator {
-  validate(schema: WorkflowSchema): void {
+  /**
+   * Validate a workflow schema. When a `registry` is supplied, sub-workflow
+   * nodes are additionally checked: their referenced `childWorkflowType` must be
+   * registered (so composition can't dangle on an unknown workflow).
+   */
+  validate(schema: WorkflowSchema, registry?: WorkflowRegistry): void {
     const nodeMap = this.buildNodeMap(schema);
     this.validateStartExists(schema, nodeMap);
     this.validateConnectionsExist(schema, nodeMap);
@@ -16,6 +23,18 @@ export class WorkflowValidator {
     this.validateRouterConnectionRule(schema);
     this.validateNoCycles(schema, nodeMap);
     this.validateReachability(schema, nodeMap);
+    if (registry) this.validateSubWorkflowsRegistered(schema, registry);
+  }
+
+  private validateSubWorkflowsRegistered(schema: WorkflowSchema, registry: WorkflowRegistry): void {
+    for (const config of schema.nodes) {
+      const node = config.node;
+      if (isSubWorkflowReference(node) && !registry.has(node.childWorkflowType)) {
+        throw new WorkflowValidationError(
+          `Node "${config.node.token}" references unregistered sub-workflow "${node.childWorkflowType}"`,
+        );
+      }
+    }
   }
 
   private buildNodeMap(schema: WorkflowSchema): Map<string, NodeConfig> {

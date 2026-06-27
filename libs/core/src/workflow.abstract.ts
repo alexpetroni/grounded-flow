@@ -4,6 +4,7 @@ import type { NodeConfig, WorkflowSchema } from './workflow-schema';
 import { WorkflowValidator } from './validator';
 import { BaseRouter } from './router.abstract';
 import type { Node } from './node.abstract';
+import type { WorkflowRegistry } from './workflow-registry';
 import { isStreamingNode } from './streaming-node.interface';
 
 @Injectable()
@@ -12,9 +13,18 @@ export abstract class Workflow {
 
   abstract getSchema(): WorkflowSchema;
 
+  /**
+   * Workflows that compose sub-workflows override this to expose the registry,
+   * enabling validate-time checks that referenced child workflows are
+   * registered. Returns undefined for leaf workflows (no sub-workflow checks).
+   */
+  protected getRegistry(): WorkflowRegistry | undefined {
+    return undefined;
+  }
+
   async run(event: unknown, traceId?: string): Promise<TaskContext> {
     const schema = this.getSchema();
-    this.validator.validate(schema);
+    this.validator.validate(schema, this.getRegistry());
 
     const validatedEvent = schema.eventSchema ? schema.eventSchema.parse(event) : event;
 
@@ -33,7 +43,7 @@ export abstract class Workflow {
 
   async *runStream(event: unknown, traceId?: string): AsyncGenerator<unknown, void, undefined> {
     const schema = this.getSchema();
-    this.validator.validate(schema);
+    this.validator.validate(schema, this.getRegistry());
 
     const validatedEvent = schema.eventSchema ? schema.eventSchema.parse(event) : event;
 
