@@ -41,6 +41,10 @@ when every bullet in its Definition of Done holds.
 | 5 | [`PHASE-5-PLAN.md`](./PHASE-5-PLAN.md) | RAG retrieval & generation (hybrid + rerank + grounded citations) |
 | 6 | [`PHASE-6-PLAN.md`](./PHASE-6-PLAN.md) | Eval harness, observability, hardening, demo smoke |
 
+A hands-on **[Platform Guide](./docs/GUIDE.md)** walks through agent orchestration (chaining,
+routing, concurrent fan-out, workflow composition, streaming) and RAG (uploading documents and
+interrogating them with grounded, cited answers), with runnable examples.
+
 Full design rationale, architecture, and the reference-project critique live in
 **[`docs/PLAN.md`](./docs/PLAN.md)**. Engineering rules and the phase workflow live in
 **[`CLAUDE.md`](./CLAUDE.md)**.
