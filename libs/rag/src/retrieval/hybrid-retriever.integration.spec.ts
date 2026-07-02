@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
-import Dockerode from 'dockerode';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { uuidv7 } from 'uuidv7';
 import { QdrantVectorStore } from '../vector-store/qdrant.vector-store';
 import type { ChunkPoint } from '../vector-store/vector-store.interface';
 import type { EmbedResult } from '../embedder/embedder.interface';
 import { HybridRetriever } from './hybrid-retriever';
+import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const COLLECTION = 'retriever_test';
 const DIMS = 4;
@@ -23,36 +23,19 @@ const DOC_A = uuidv7();
 const DOC_B = uuidv7();
 
 async function startQdrant(): Promise<{ host: string; port: number }> {
-  const docker = new Dockerode();
-  let ragNetworkId: string | null = null;
-  try {
-    const nets = await docker.listNetworks({ filters: JSON.stringify({ name: ['rag_default'] }) });
-    if (nets.length > 0) ragNetworkId = nets[0]?.Id ?? null;
-  } catch {
-    // not in Docker
-  }
+  const net = await detectRagNetwork();
 
-  const fakeNetwork = ragNetworkId
-    ? ({ getId: () => ragNetworkId, getName: () => 'rag_default' } as unknown as Parameters<
-        typeof GenericContainer.prototype.withNetwork
-      >[0])
-    : null;
-
-  let builder = new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
-    Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+  const builder = attachOrExpose(
+    new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
+      Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+    ),
+    net,
+    'qdrant_retriever_test',
+    6333,
   );
-  builder = fakeNetwork
-    ? builder.withNetwork(fakeNetwork).withNetworkAliases('qdrant_retriever_test')
-    : builder.withExposedPorts(6333);
 
   container = await builder.start();
-
-  if (ragNetworkId) {
-    const info = await docker.getContainer(container.getId()).inspect();
-    const ip = info.NetworkSettings.Networks['rag_default']?.IPAddress ?? container.getHost();
-    return { host: ip, port: 6333 };
-  }
-  return { host: container.getHost(), port: container.getMappedPort(6333) };
+  return endpointOf(container, net, 6333);
 }
 
 function point(

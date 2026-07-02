@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
-import Dockerode from 'dockerode';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { QdrantVectorStore } from './qdrant.vector-store';
 import { FakeEmbedder } from '../embedder/fake.embedder';
 import { uuidv7 } from 'uuidv7';
+import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const COLLECTION = 'test_chunks';
 const DIMS = 4;
@@ -15,41 +15,19 @@ let store: QdrantVectorStore;
 let embedder: FakeEmbedder;
 
 async function startQdrant(): Promise<{ host: string; port: number }> {
-  const docker = new Dockerode();
+  const net = await detectRagNetwork();
 
-  let ragNetworkId: string | null = null;
-  try {
-    const nets = await docker.listNetworks({ filters: JSON.stringify({ name: ['rag_default'] }) });
-    if (nets.length > 0) ragNetworkId = nets[0]?.Id ?? null;
-  } catch {
-    // not in Docker or no socket — use standard strategy
-  }
-
-  const fakeNetwork = ragNetworkId
-    ? ({ getId: () => ragNetworkId, getName: () => 'rag_default' } as unknown as Parameters<
-        typeof GenericContainer.prototype.withNetwork
-      >[0])
-    : null;
-
-  let builder = new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
-    Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+  const builder = attachOrExpose(
+    new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
+      Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+    ),
+    net,
+    'qdrant_tc_test',
+    6333,
   );
 
-  if (fakeNetwork) {
-    builder = builder.withNetwork(fakeNetwork).withNetworkAliases('qdrant_tc_test');
-  } else {
-    builder = builder.withExposedPorts(6333);
-  }
-
   container = await builder.start();
-
-  if (ragNetworkId) {
-    const info = await docker.getContainer(container.getId()).inspect();
-    const ip = info.NetworkSettings.Networks['rag_default']?.IPAddress ?? container.getHost();
-    return { host: ip, port: 6333 };
-  }
-
-  return { host: container.getHost(), port: container.getMappedPort(6333) };
+  return endpointOf(container, net, 6333);
 }
 
 beforeAll(async () => {

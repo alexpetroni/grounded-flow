@@ -4,13 +4,13 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import { Queue, Worker } from 'bullmq';
-import Dockerode from 'dockerode';
 import path from 'path';
 import { EventsRepository } from '@app/database';
 import * as schema from '@app/database';
 import { WorkflowRegistry } from '@app/core';
 import { EchoWorkflow } from '../../../../workflows/echo/echo.workflow';
 import { EchoNode, UpperCaseNode } from '../../../../workflows/echo/echo.nodes';
+import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../../../docker/migrations');
 
@@ -30,69 +30,48 @@ async function startContainersForTest(): Promise<{
   pgContainer: StartedTestContainer;
   redisContainer: StartedTestContainer;
 }> {
-  const docker = new Dockerode();
+  const net = await detectRagNetwork();
 
-  // Detect if we are inside the `rag_default` Docker network
-  let ragNetworkId: string | null = null;
-  try {
-    const nets = await docker.listNetworks({ filters: JSON.stringify({ name: ['rag_default'] }) });
-    if (nets.length > 0) ragNetworkId = nets[0].Id;
-  } catch {
-    // not in Docker or no socket access — proceed with standard strategy
-  }
-
-  const fakeNetwork = ragNetworkId
-    ? ({ getId: () => ragNetworkId, getName: () => 'rag_default' } as unknown as Parameters<
-        typeof GenericContainer.prototype.withNetwork
-      >[0])
-    : null;
-
-  let pgBuilder = new GenericContainer('postgres:16-bookworm')
-    .withEnvironment({
-      POSTGRES_DB: 'rag_test',
-      POSTGRES_USER: 'rag',
-      POSTGRES_PASSWORD: 'rag',
-    })
-    .withWaitStrategy(Wait.forSuccessfulCommand('psql -U rag -d rag_test -c "SELECT 1"'));
-
-  let redisBuilder = new GenericContainer('redis:7-bookworm').withWaitStrategy(
-    Wait.forSuccessfulCommand('redis-cli ping'),
+  const pgBuilder = attachOrExpose(
+    new GenericContainer('postgres:16-bookworm')
+      .withEnvironment({
+        POSTGRES_DB: 'rag_test',
+        POSTGRES_USER: 'rag',
+        POSTGRES_PASSWORD: 'rag',
+      })
+      .withWaitStrategy(Wait.forSuccessfulCommand('psql -U rag -d rag_test -c "SELECT 1"')),
+    net,
+    'pg_tc_test',
+    5432,
   );
 
-  if (fakeNetwork) {
-    pgBuilder = pgBuilder.withNetwork(fakeNetwork).withNetworkAliases('pg_tc_test');
-    redisBuilder = redisBuilder.withNetwork(fakeNetwork).withNetworkAliases('redis_tc_test');
-  } else {
-    pgBuilder = pgBuilder.withExposedPorts(5432);
-    redisBuilder = redisBuilder.withExposedPorts(6379);
-  }
+  const redisBuilder = attachOrExpose(
+    new GenericContainer('redis:7-bookworm').withWaitStrategy(
+      Wait.forSuccessfulCommand('redis-cli ping'),
+    ),
+    net,
+    'redis_tc_test',
+    6379,
+  );
 
   const [pgContainer, redisContainer] = await Promise.all([
     pgBuilder.start(),
     redisBuilder.start(),
   ]);
 
-  let pgHost: string;
-  let pgPort: number;
-  let redisHost: string;
-  let redisPort: number;
+  const [pg, redis] = await Promise.all([
+    endpointOf(pgContainer, net, 5432),
+    endpointOf(redisContainer, net, 6379),
+  ]);
 
-  if (ragNetworkId) {
-    const pgInfo = await docker.getContainer(pgContainer.getId()).inspect();
-    const redisInfo = await docker.getContainer(redisContainer.getId()).inspect();
-    pgHost = pgInfo.NetworkSettings.Networks['rag_default']?.IPAddress ?? pgContainer.getHost();
-    pgPort = 5432;
-    redisHost =
-      redisInfo.NetworkSettings.Networks['rag_default']?.IPAddress ?? redisContainer.getHost();
-    redisPort = 6379;
-  } else {
-    pgHost = pgContainer.getHost();
-    pgPort = pgContainer.getMappedPort(5432);
-    redisHost = redisContainer.getHost();
-    redisPort = redisContainer.getMappedPort(6379);
-  }
-
-  return { pgHost, pgPort, redisHost, redisPort, pgContainer, redisContainer };
+  return {
+    pgHost: pg.host,
+    pgPort: pg.port,
+    redisHost: redis.host,
+    redisPort: redis.port,
+    pgContainer,
+    redisContainer,
+  };
 }
 
 describe('Events integration (Redis + Postgres)', () => {

@@ -4,7 +4,6 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import { Queue, Worker } from 'bullmq';
-import Dockerode from 'dockerode';
 import path from 'path';
 import { EventsRepository } from '@app/database';
 import * as schema from '@app/database';
@@ -16,6 +15,7 @@ import {
   EchoSubWorkflowNode,
   SummarizeNode,
 } from '../../../../workflows/composite/composite.nodes';
+import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../../../docker/migrations');
 
@@ -27,58 +27,40 @@ async function startContainers(): Promise<{
   pgContainer: StartedTestContainer;
   redisContainer: StartedTestContainer;
 }> {
-  const docker = new Dockerode();
-  let ragNetworkId: string | null = null;
-  try {
-    const nets = await docker.listNetworks({ filters: JSON.stringify({ name: ['rag_default'] }) });
-    if (nets.length > 0) ragNetworkId = nets[0].Id;
-  } catch {
-    // not in Docker
-  }
-  const fakeNetwork = ragNetworkId
-    ? ({ getId: () => ragNetworkId, getName: () => 'rag_default' } as unknown as Parameters<
-        typeof GenericContainer.prototype.withNetwork
-      >[0])
-    : null;
+  const net = await detectRagNetwork();
 
-  let pgBuilder = new GenericContainer('postgres:16-bookworm')
-    .withEnvironment({ POSTGRES_DB: 'rag_test', POSTGRES_USER: 'rag', POSTGRES_PASSWORD: 'rag' })
-    .withWaitStrategy(Wait.forSuccessfulCommand('psql -U rag -d rag_test -c "SELECT 1"'));
-  let redisBuilder = new GenericContainer('redis:7-bookworm').withWaitStrategy(
-    Wait.forSuccessfulCommand('redis-cli ping'),
+  const pgBuilder = attachOrExpose(
+    new GenericContainer('postgres:16-bookworm')
+      .withEnvironment({ POSTGRES_DB: 'rag_test', POSTGRES_USER: 'rag', POSTGRES_PASSWORD: 'rag' })
+      .withWaitStrategy(Wait.forSuccessfulCommand('psql -U rag -d rag_test -c "SELECT 1"')),
+    net,
+    'pg_composite_test',
+    5432,
   );
-
-  if (fakeNetwork) {
-    pgBuilder = pgBuilder.withNetwork(fakeNetwork).withNetworkAliases('pg_composite_test');
-    redisBuilder = redisBuilder.withNetwork(fakeNetwork).withNetworkAliases('redis_composite_test');
-  } else {
-    pgBuilder = pgBuilder.withExposedPorts(5432);
-    redisBuilder = redisBuilder.withExposedPorts(6379);
-  }
+  const redisBuilder = attachOrExpose(
+    new GenericContainer('redis:7-bookworm').withWaitStrategy(
+      Wait.forSuccessfulCommand('redis-cli ping'),
+    ),
+    net,
+    'redis_composite_test',
+    6379,
+  );
 
   const [pgContainer, redisContainer] = await Promise.all([
     pgBuilder.start(),
     redisBuilder.start(),
   ]);
 
-  if (ragNetworkId) {
-    const pgInfo = await docker.getContainer(pgContainer.getId()).inspect();
-    const redisInfo = await docker.getContainer(redisContainer.getId()).inspect();
-    return {
-      pgHost: pgInfo.NetworkSettings.Networks['rag_default']?.IPAddress ?? pgContainer.getHost(),
-      pgPort: 5432,
-      redisHost:
-        redisInfo.NetworkSettings.Networks['rag_default']?.IPAddress ?? redisContainer.getHost(),
-      redisPort: 6379,
-      pgContainer,
-      redisContainer,
-    };
-  }
+  const [pg, redis] = await Promise.all([
+    endpointOf(pgContainer, net, 5432),
+    endpointOf(redisContainer, net, 6379),
+  ]);
+
   return {
-    pgHost: pgContainer.getHost(),
-    pgPort: pgContainer.getMappedPort(5432),
-    redisHost: redisContainer.getHost(),
-    redisPort: redisContainer.getMappedPort(6379),
+    pgHost: pg.host,
+    pgPort: pg.port,
+    redisHost: redis.host,
+    redisPort: redis.port,
     pgContainer,
     redisContainer,
   };

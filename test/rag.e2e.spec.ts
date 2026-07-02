@@ -5,7 +5,6 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
-import Dockerode from 'dockerode';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { uuidv7 } from 'uuidv7';
 import { readFileSync } from 'fs';
@@ -23,6 +22,7 @@ import {
 import type { ChunkPoint } from '@app/rag';
 import { LlmService, createFakeLanguageModel } from '@app/llm';
 import { RagController } from '../apps/api/src/rag/rag.controller';
+import { detectRagNetwork, attachOrExpose, endpointOf } from './helpers/rag-network';
 
 const COLLECTION = 'rag_query_e2e';
 const DIMS = 4;
@@ -49,34 +49,19 @@ let container: StartedTestContainer;
 let app: INestApplication;
 
 async function startQdrant(): Promise<{ host: string; port: number }> {
-  const docker = new Dockerode();
-  let ragNetworkId: string | null = null;
-  try {
-    const nets = await docker.listNetworks({ filters: JSON.stringify({ name: ['rag_default'] }) });
-    if (nets.length > 0) ragNetworkId = nets[0]?.Id ?? null;
-  } catch {
-    // not in Docker
-  }
-  const fakeNetwork = ragNetworkId
-    ? ({ getId: () => ragNetworkId, getName: () => 'rag_default' } as unknown as Parameters<
-        typeof GenericContainer.prototype.withNetwork
-      >[0])
-    : null;
+  const net = await detectRagNetwork();
 
-  let builder = new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
-    Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+  const builder = attachOrExpose(
+    new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
+      Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+    ),
+    net,
+    'qdrant_rag_e2e',
+    6333,
   );
-  builder = fakeNetwork
-    ? builder.withNetwork(fakeNetwork).withNetworkAliases('qdrant_rag_e2e')
-    : builder.withExposedPorts(6333);
 
   container = await builder.start();
-  if (ragNetworkId) {
-    const info = await docker.getContainer(container.getId()).inspect();
-    const ip = info.NetworkSettings.Networks['rag_default']?.IPAddress ?? container.getHost();
-    return { host: ip, port: 6333 };
-  }
-  return { host: container.getHost(), port: container.getMappedPort(6333) };
+  return endpointOf(container, net, 6333);
 }
 
 async function ingestCorpus(store: QdrantVectorStore, embedder: FakeEmbedder): Promise<void> {

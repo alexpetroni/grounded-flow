@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
-import Dockerode from 'dockerode';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
@@ -12,6 +11,7 @@ import * as schema from '@app/database';
 import type { Db } from '@app/database';
 import { DocumentsRepository, ChunksRepository, UnitOfWork } from '@app/database';
 import { QdrantVectorStore, FakeEmbedder, IngestionService } from '@app/rag';
+import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../../../docker/migrations');
 const INGEST_QUEUE = 'ingest';
@@ -36,41 +36,32 @@ async function startContainers(): Promise<{
   redisContainer: StartedTestContainer;
   qdrantContainer: StartedTestContainer;
 }> {
-  const docker = new Dockerode();
+  const net = await detectRagNetwork();
 
-  let ragNetworkId: string | null = null;
-  try {
-    const nets = await docker.listNetworks({ filters: JSON.stringify({ name: ['rag_default'] }) });
-    if (nets.length > 0) ragNetworkId = nets[0]?.Id ?? null;
-  } catch {
-    // not in Docker
-  }
-
-  const fakeNetwork = ragNetworkId
-    ? ({ getId: () => ragNetworkId, getName: () => 'rag_default' } as unknown as Parameters<
-        typeof GenericContainer.prototype.withNetwork
-      >[0])
-    : null;
-
-  let pgBuilder = new GenericContainer('postgres:16-bookworm')
-    .withEnvironment({ POSTGRES_DB: 'rag_test', POSTGRES_USER: 'rag', POSTGRES_PASSWORD: 'rag' })
-    .withWaitStrategy(Wait.forSuccessfulCommand('psql -U rag -d rag_test -c "SELECT 1"'));
-  let redisBuilder = new GenericContainer('redis:7-bookworm').withWaitStrategy(
-    Wait.forSuccessfulCommand('redis-cli ping'),
+  const pgBuilder = attachOrExpose(
+    new GenericContainer('postgres:16-bookworm')
+      .withEnvironment({ POSTGRES_DB: 'rag_test', POSTGRES_USER: 'rag', POSTGRES_PASSWORD: 'rag' })
+      .withWaitStrategy(Wait.forSuccessfulCommand('psql -U rag -d rag_test -c "SELECT 1"')),
+    net,
+    'pg_ingest_test',
+    5432,
   );
-  let qdrantBuilder = new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
-    Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+  const redisBuilder = attachOrExpose(
+    new GenericContainer('redis:7-bookworm').withWaitStrategy(
+      Wait.forSuccessfulCommand('redis-cli ping'),
+    ),
+    net,
+    'redis_ingest_test',
+    6379,
   );
-
-  if (fakeNetwork) {
-    pgBuilder = pgBuilder.withNetwork(fakeNetwork).withNetworkAliases('pg_ingest_test');
-    redisBuilder = redisBuilder.withNetwork(fakeNetwork).withNetworkAliases('redis_ingest_test');
-    qdrantBuilder = qdrantBuilder.withNetwork(fakeNetwork).withNetworkAliases('qdrant_ingest_test');
-  } else {
-    pgBuilder = pgBuilder.withExposedPorts(5432);
-    redisBuilder = redisBuilder.withExposedPorts(6379);
-    qdrantBuilder = qdrantBuilder.withExposedPorts(6333);
-  }
+  const qdrantBuilder = attachOrExpose(
+    new GenericContainer('qdrant/qdrant:v1.13.6').withWaitStrategy(
+      Wait.forLogMessage('Qdrant HTTP listening on 6333', 1).withStartupTimeout(60_000),
+    ),
+    net,
+    'qdrant_ingest_test',
+    6333,
+  );
 
   const [pgContainer, redisContainer, qdrantContainer] = await Promise.all([
     pgBuilder.start(),
@@ -78,34 +69,19 @@ async function startContainers(): Promise<{
     qdrantBuilder.start(),
   ]);
 
-  if (ragNetworkId) {
-    const [pgInfo, redisInfo, qdrantInfo] = await Promise.all([
-      docker.getContainer(pgContainer.getId()).inspect(),
-      docker.getContainer(redisContainer.getId()).inspect(),
-      docker.getContainer(qdrantContainer.getId()).inspect(),
-    ]);
-    return {
-      pgHost: pgInfo.NetworkSettings.Networks['rag_default']?.IPAddress ?? pgContainer.getHost(),
-      pgPort: 5432,
-      redisHost:
-        redisInfo.NetworkSettings.Networks['rag_default']?.IPAddress ?? redisContainer.getHost(),
-      redisPort: 6379,
-      qdrantHost:
-        qdrantInfo.NetworkSettings.Networks['rag_default']?.IPAddress ?? qdrantContainer.getHost(),
-      qdrantPort: 6333,
-      pgContainer,
-      redisContainer,
-      qdrantContainer,
-    };
-  }
+  const [pg, redis, qdrant] = await Promise.all([
+    endpointOf(pgContainer, net, 5432),
+    endpointOf(redisContainer, net, 6379),
+    endpointOf(qdrantContainer, net, 6333),
+  ]);
 
   return {
-    pgHost: pgContainer.getHost(),
-    pgPort: pgContainer.getMappedPort(5432),
-    redisHost: redisContainer.getHost(),
-    redisPort: redisContainer.getMappedPort(6379),
-    qdrantHost: qdrantContainer.getHost(),
-    qdrantPort: qdrantContainer.getMappedPort(6333),
+    pgHost: pg.host,
+    pgPort: pg.port,
+    redisHost: redis.host,
+    redisPort: redis.port,
+    qdrantHost: qdrant.host,
+    qdrantPort: qdrant.port,
     pgContainer,
     redisContainer,
     qdrantContainer,

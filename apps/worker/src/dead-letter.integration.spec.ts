@@ -1,44 +1,29 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
-import Dockerode from 'dockerode';
 import { Queue, Worker } from 'bullmq';
 import type { ConfigService } from '@nestjs/config';
 import { DeadLetterService } from './dead-letter.service';
+import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../test/helpers/rag-network';
 
 let container: StartedTestContainer;
 let connection: { host: string; port: number };
 let dls: DeadLetterService;
 
 async function startRedis(): Promise<{ host: string; port: number }> {
-  const docker = new Dockerode();
-  let ragNetworkId: string | null = null;
-  try {
-    const nets = await docker.listNetworks({ filters: JSON.stringify({ name: ['rag_default'] }) });
-    if (nets.length > 0) ragNetworkId = nets[0]?.Id ?? null;
-  } catch {
-    // not in Docker
-  }
-  const fakeNetwork = ragNetworkId
-    ? ({ getId: () => ragNetworkId, getName: () => 'rag_default' } as unknown as Parameters<
-        typeof GenericContainer.prototype.withNetwork
-      >[0])
-    : null;
+  const net = await detectRagNetwork();
 
-  let builder = new GenericContainer('redis:7-bookworm').withWaitStrategy(
-    Wait.forSuccessfulCommand('redis-cli ping'),
+  const builder = attachOrExpose(
+    new GenericContainer('redis:7-bookworm').withWaitStrategy(
+      Wait.forSuccessfulCommand('redis-cli ping'),
+    ),
+    net,
+    'redis_dlq_test',
+    6379,
   );
-  builder = fakeNetwork
-    ? builder.withNetwork(fakeNetwork).withNetworkAliases('redis_dlq_test')
-    : builder.withExposedPorts(6379);
 
   container = await builder.start();
-  if (ragNetworkId) {
-    const info = await docker.getContainer(container.getId()).inspect();
-    const ip = info.NetworkSettings.Networks['rag_default']?.IPAddress ?? container.getHost();
-    return { host: ip, port: 6379 };
-  }
-  return { host: container.getHost(), port: container.getMappedPort(6379) };
+  return endpointOf(container, net, 6379);
 }
 
 function configWith(url: string): ConfigService {
