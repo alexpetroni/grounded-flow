@@ -54,7 +54,13 @@ export class EventsProcessor extends WorkerHost {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`Event ${eventId} failed: ${message}`);
-      await this.eventsRepository.fail(eventId, message);
+      // `failed` is a TERMINAL status: only write it once retries are
+      // exhausted. Writing it per attempt made pollers see a transient
+      // `failed` that later flipped back to `processing` on retry.
+      const maxAttempts = job.opts.attempts ?? 1;
+      if (job.attemptsMade + 1 >= maxAttempts) {
+        await this.eventsRepository.fail(eventId, message);
+      }
       throw err;
     }
   }

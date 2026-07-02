@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-bookworm
+    mem_limit: 1g
     environment:
       POSTGRES_DB: rag
       POSTGRES_USER: rag
@@ -18,6 +19,7 @@ services:
 
   redis:
     image: redis:7-bookworm
+    mem_limit: 512m
     volumes:
       - redis_data:/data
     ports:
@@ -31,6 +33,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:v1.13.6
+    mem_limit: 1g
     volumes:
       - qdrant_data:/qdrant/storage
     ports:
@@ -79,11 +82,21 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080' 2>/dev/null || exit 1"]
+      # Probe the app's real health (dependency checks), not just the TCP port.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/health').then((r) => r.json()).then((d) => process.exit(d.status === 'ok' ? 0 : 1)).catch(() => process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
+    # Give in-flight requests time to drain on shutdown (enableShutdownHooks).
+    stop_grace_period: 30s
+    mem_limit: 1g
     restart: unless-stopped
 
   worker:
@@ -105,6 +118,23 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      # Liveness via heartbeat file: stale mtime means the event loop is wedged.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const s = require('fs').statSync('/tmp/worker-heartbeat'); process.exit(Date.now() - s.mtimeMs < 30000 ? 0 : 1)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # BullMQ drains in-flight jobs on SIGTERM; embedding/ingest jobs are slow —
+    # don't SIGKILL them after Docker's default 10s.
+    stop_grace_period: 60s
+    mem_limit: 1g
     restart: unless-stopped
 
 volumes:

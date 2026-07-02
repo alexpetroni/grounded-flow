@@ -24,6 +24,7 @@ interface Bucket {
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly buckets = new Map<string, Bucket>();
+  private lastSweep = 0;
 
   constructor(
     private readonly config: ConfigService<Env, true>,
@@ -40,6 +41,15 @@ export class RateLimitGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request>();
     const key = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
     const now = this.now();
+
+    // Evict expired buckets once per window: one-shot clients (IP rotation)
+    // otherwise grow the map without bound.
+    if (now - this.lastSweep >= windowMs) {
+      this.lastSweep = now;
+      for (const [k, b] of this.buckets) {
+        if (now >= b.resetAt) this.buckets.delete(k);
+      }
+    }
 
     const bucket = this.buckets.get(key);
     if (!bucket || now >= bucket.resetAt) {

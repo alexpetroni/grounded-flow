@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
@@ -27,6 +28,8 @@ const chatCompletionsSchema = z.object({
 
 @Controller('v1')
 export class ChatController {
+  private readonly logger = new Logger(ChatController.name);
+
   constructor(private readonly streamingWorkflow: StreamingWorkflow) {}
 
   @Post('chat/completions')
@@ -47,7 +50,10 @@ export class ChatController {
         res.write(`data: ${JSON.stringify(chunk as OpenAIChunk)}\n\n`);
       }
     } catch (err) {
-      res.write(`data: ${JSON.stringify({ error: String(err) })}\n\n`);
+      // Log the real error server-side; never leak internal detail to the
+      // (possibly unauthenticated) SSE consumer.
+      this.logger.error(`Chat stream failed: ${err instanceof Error ? err.stack : String(err)}`);
+      res.write(`data: ${JSON.stringify({ error: 'stream_error' })}\n\n`);
     }
 
     res.write('data: [DONE]\n\n');

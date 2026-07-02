@@ -45,8 +45,10 @@ export class EventsService {
           type: 'exponential',
           delay: this.config.get('BULLMQ_BACKOFF_MS', { infer: true }),
         },
-        removeOnComplete: false,
-        removeOnFail: false,
+        // Bounded retention: event state lives in Postgres, not the queue —
+        // unbounded Redis job history eventually exhausts memory.
+        removeOnComplete: 100,
+        removeOnFail: 100,
       },
     );
 

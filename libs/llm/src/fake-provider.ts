@@ -28,18 +28,23 @@ function looksLikeJson(text: string): boolean {
 
 interface DoGenerateOptions {
   responseFormat?: { type: string };
+  prompt?: unknown;
 }
 
 /**
  * Coerce a plain text response into structured JSON when the caller is using
- * object generation (`generateObject`). Wrapping the text as
- * `{ answer, citations: [], confidence }` lets the default fake satisfy the RAG
- * answer schema (extra fields are stripped by stricter Zod schemas), so the
- * fake-provider boot path can serve `/rag/query` deterministically with no keys.
+ * object generation (`generateObject`), so the fake-provider boot path can
+ * serve `/rag/query` deterministically with no keys. When the prompt carries
+ * RAG context (`chunkId=…` lines from RagAnswerNode), the coerced answer cites
+ * the first chunk like a well-behaved model would — exercising the GENUINE
+ * grounding path rather than relying on repair to fabricate a citation.
  */
 function coerceResponse(raw: string, opts?: DoGenerateOptions): string {
   if (opts?.responseFormat?.type === 'json' && !looksLikeJson(raw)) {
-    return JSON.stringify({ answer: raw, citations: [], confidence: 0.5 });
+    const promptText = JSON.stringify(opts?.prompt ?? '');
+    const chunkId = /chunkId=([A-Za-z0-9-]+)/.exec(promptText)?.[1];
+    const citations = chunkId ? [{ chunkId, quote: 'fake grounded quote' }] : [];
+    return JSON.stringify({ answer: raw, citations, confidence: 0.5 });
   }
   return raw;
 }

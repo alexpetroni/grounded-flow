@@ -24,6 +24,13 @@ COPY . .
 ENV CI=true
 RUN pnpm install --frozen-lockfile && pnpm exec nest build worker
 
+# ── prod-deps ─────────────────────────────────────────────────────────────────
+# Production-only node_modules: the runtime image must not ship the dev tree
+# (vitest, testcontainers, webpack, eslint, …) — size and CVE surface.
+FROM base AS prod-deps
+ENV CI=true
+RUN pnpm install --frozen-lockfile --prod
+
 # ── runtime ───────────────────────────────────────────────────────────────────
 FROM node:24-bookworm-slim AS runtime
 ENV PNPM_HOME="/pnpm"
@@ -35,7 +42,7 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
 COPY --from=build --chown=nestjs:nodejs /app/dist ./dist
-COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=prod-deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --chown=nestjs:nodejs package.json .
 
 USER nestjs

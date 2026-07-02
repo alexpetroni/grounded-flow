@@ -37,6 +37,8 @@ const CORPUS: Array<{ file: string; mime: string }> = [
 // The fake LLM cites a chunkId that is NOT in the corpus, forcing the grounding
 // validator to reject + repair it — proving the regression end-to-end.
 const HALLUCINATED_ID = '00000000-0000-0000-0000-000000000000';
+let currentResponses: string[] | undefined;
+
 const FAKE_ANSWER = JSON.stringify({
   answer: 'Retrieval-Augmented Generation grounds generated answers in retrieved source chunks.',
   citations: [{ chunkId: HALLUCINATED_ID, quote: 'retrieval augmented generation' }],
@@ -109,7 +111,11 @@ beforeAll(async () => {
   await ingestCorpus(store, embedder);
 
   const llm = new LlmService();
-  llm.getLanguageModel = () => createFakeLanguageModel({ responses: [FAKE_ANSWER] });
+  // Mutable per-test response: undefined → the default fake, which cites the
+  // first chunkId it sees in the prompt (genuine grounding); FAKE_ANSWER →
+  // a hallucinated citation to exercise the repair path.
+  llm.getLanguageModel = () =>
+    createFakeLanguageModel(currentResponses ? { responses: currentResponses } : {});
   const answerNode = new RagAnswerNode(llm);
 
   const ragQueryService = new RagQueryService(
@@ -136,6 +142,7 @@ afterAll(async () => {
 
 describe('POST /rag/query (e2e)', () => {
   it('returns a grounded, cited answer over the ingested corpus', async () => {
+    currentResponses = undefined; // default fake cites genuinely from the prompt
     const res = await request(app.getHttpServer())
       .post('/rag/query')
       .send({ query: 'What is retrieval augmented generation?' })
@@ -155,9 +162,11 @@ describe('POST /rag/query (e2e)', () => {
       expect(retrievedIds.has(c.chunkId)).toBe(true);
     }
     expect(res.body.grounded).toBe(true);
+    expect(res.body.repaired).toBe(false);
   });
 
   it('repairs the hallucinated citation rather than echoing it back', async () => {
+    currentResponses = [FAKE_ANSWER];
     const res = await request(app.getHttpServer())
       .post('/rag/query')
       .send({ query: 'Explain hybrid retrieval.' })
@@ -168,6 +177,8 @@ describe('POST /rag/query (e2e)', () => {
       res.body.citations.every((c: { chunkId: string }) => c.chunkId !== HALLUCINATED_ID),
     ).toBe(true);
     expect(res.body.repaired).toBe(true);
+    // Regression: a repaired answer must not claim to be grounded.
+    expect(res.body.grounded).toBe(false);
   });
 
   it('dense-only retrieval returns chunks', async () => {
