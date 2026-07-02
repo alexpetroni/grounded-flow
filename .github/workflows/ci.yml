@@ -5,9 +5,14 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Nightly eval ratchet (03:17 UTC — off the top-of-hour rush).
+    - cron: '17 3 * * *'
+  workflow_dispatch:
 
 jobs:
   ci:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     # Hoist the secret into an env var: the `secrets` context is NOT allowed in a
     # step-level `if:`, but `env` is. Empty string when the secret is unset.
@@ -44,8 +49,10 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Test
-        run: pnpm test
+      # Coverage gate: vitest.config.ts enforces ≥80% lines on libs/core,
+      # libs/rag, libs/database (CLAUDE.md quality gates).
+      - name: Test (unit + integration, coverage gate)
+        run: pnpm test:cov
 
       - name: Docker build (api)
         uses: docker/build-push-action@v6
@@ -62,3 +69,36 @@ jobs:
           file: docker/Dockerfile.worker
           push: false
           tags: rag-worker:ci
+
+      - name: E2E (full-stack happy path, mocked providers)
+        run: pnpm test:e2e
+
+      # Product-level gate: compose stack up with fake providers, exercise
+      # health → events → ingest → grounded RAG query → chat SSE.
+      - name: Smoke (compose stack)
+        run: |
+          cp .env.example .env
+          SMOKE_DOWN=1 bash scripts/smoke.sh
+
+  # Separate, non-blocking eval (CLAUDE.md: manual dispatch + nightly). Runs
+  # keyless by default (sparse retrieval vs the recorded baseline ratchet).
+  eval:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Eval (baseline ratchet)
+        run: pnpm eval
