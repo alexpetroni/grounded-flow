@@ -82,4 +82,30 @@ describe('Chunker', () => {
       expect(Math.abs(actual - chunk.tokenCount)).toBeLessThanOrEqual(3); // allow minor join-space drift
     }
   });
+
+  // Regression: splitting used to trim pieces and rejoin with a single space,
+  // dropping '. ' separators and collapsing newlines — chunk text was no longer
+  // a verbatim span of the source, corrupting citation quotes sliced from it.
+  it('every chunk is a verbatim substring of the source text', () => {
+    const c = new Chunker({ chunkTokens: 25, overlapTokens: 5 });
+    const text =
+      'First sentence about retrieval. Second sentence about generation.\n\n' +
+      'A new paragraph with more details. It has several sentences. Each one matters.\n' +
+      'A final line to make the text long enough to split into many chunks.';
+    const results = c.chunk(text);
+    expect(results.length).toBeGreaterThan(1);
+    for (const chunk of results) {
+      expect(text.includes(chunk.text)).toBe(true);
+    }
+  });
+
+  it('preserves sentence punctuation across chunk boundaries', () => {
+    const c = new Chunker({ chunkTokens: 20, overlapTokens: 0 });
+    const text = 'Alpha beta gamma delta. Epsilon zeta eta theta. '.repeat(6).trim();
+    const joined = c
+      .chunk(text)
+      .map((r) => r.text)
+      .join(' ');
+    expect(joined).toContain('delta. Epsilon');
+  });
 });

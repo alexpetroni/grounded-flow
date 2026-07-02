@@ -15,6 +15,13 @@
       "when": 1782284766737,
       "tag": "0001_heavy_adam_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783022198000,
+      "tag": "0002_chunks_document_id_idx",
+      "breakpoints": true
     }
   ]
 }

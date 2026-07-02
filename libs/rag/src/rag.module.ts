@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import type { EmbeddingModel } from 'ai';
 import { DatabaseModule } from '@app/database';
-import { DocumentsRepository, ChunksRepository } from '@app/database';
+import { DocumentsRepository, UnitOfWork } from '@app/database';
 import { createEmbeddingModel, LlmModule, LlmService } from '@app/llm';
 import type { Env } from '@app/config';
 import { AiSdkEmbedder } from './embedder/ai-sdk.embedder';
@@ -88,7 +88,7 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
       provide: IngestionService,
       useFactory: (
         docsRepo: DocumentsRepository,
-        chunksRepo: ChunksRepository,
+        unitOfWork: UnitOfWork,
         embedder: AiSdkEmbedder,
         vectorStore: QdrantVectorStore,
         config: ConfigService<Env, true>,
@@ -97,20 +97,14 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
         const overlapTokens = config.get('RAG_CHUNK_OVERLAP', { infer: true });
         return new IngestionService(
           docsRepo,
-          chunksRepo,
+          unitOfWork,
           embedder,
           vectorStore,
           chunkTokens,
           overlapTokens,
         );
       },
-      inject: [
-        DocumentsRepository,
-        ChunksRepository,
-        EMBEDDER_TOKEN,
-        VECTOR_STORE_TOKEN,
-        ConfigService,
-      ],
+      inject: [DocumentsRepository, UnitOfWork, EMBEDDER_TOKEN, VECTOR_STORE_TOKEN, ConfigService],
     },
     {
       provide: RETRIEVER_TOKEN,

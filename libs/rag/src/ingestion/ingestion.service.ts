@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { DocumentsRepository } from '@app/database';
-import type { ChunksRepository } from '@app/database';
+import type { DocumentsRepository, UnitOfWork } from '@app/database';
 import { Chunker } from '../chunker/chunker';
 import { getLoader } from '../loaders/loader-registry';
 import type { Embedder } from '../embedder/embedder.interface';
@@ -24,7 +23,7 @@ export class IngestionService {
 
   constructor(
     private readonly documentsRepository: DocumentsRepository,
-    private readonly chunksRepository: ChunksRepository,
+    private readonly unitOfWork: UnitOfWork,
     private readonly embedder: Embedder,
     private readonly vectorStore: VectorStore,
     chunkTokens: number,
@@ -71,9 +70,12 @@ export class IngestionService {
 
       // Step 4: Swap — delete-by-document then write keeps re-ingest
       // idempotent; a failure mid-swap is healed by retrying the ingest.
+      // The Postgres delete+write commits atomically via the unit-of-work.
       await this.vectorStore.ensureCollection(this.embedder.dimensions);
-      await this.chunksRepository.deleteByDocumentId(documentId);
-      await this.chunksRepository.upsertMany(chunkRows);
+      await this.unitOfWork.withTransaction(async ({ chunks }) => {
+        await chunks.deleteByDocumentId(documentId);
+        await chunks.upsertMany(chunkRows);
+      });
 
       await this.vectorStore.deleteByDocumentId(documentId);
 

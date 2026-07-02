@@ -10,7 +10,12 @@ export interface GroundedAnswer {
   answer: string;
   citations: GroundedCitation[];
   confidence: number;
-  /** True iff the final answer carries at least one citation, all resolving to retrieved chunks. */
+  /**
+   * True iff at least one of the MODEL'S OWN citations resolved to a retrieved
+   * chunk. A repair-fabricated anchor citation never counts as grounded — a
+   * consumer keying on this flag must be able to distinguish a genuinely cited
+   * answer from a papered-over ungrounded one.
+   */
   grounded: boolean;
   /** True iff some model citation was ungrounded and had to be dropped or repaired. */
   repaired: boolean;
@@ -62,7 +67,9 @@ export function validateGrounding(answer: RagAnswer, retrieved: RetrievedChunk[]
     answer: answer.answer,
     citations,
     confidence: answer.confidence,
-    grounded: citations.length > 0 && citations.every((c) => byId.has(c.chunkId)),
+    // Only the model's surviving citations count: after a fabricated-anchor
+    // repair the check `citations.every(byId.has)` would be trivially true.
+    grounded: grounded.length > 0,
     repaired,
   };
 }

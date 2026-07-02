@@ -10,7 +10,7 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import path from 'path';
 import * as schema from '@app/database';
 import type { Db } from '@app/database';
-import { DocumentsRepository, ChunksRepository } from '@app/database';
+import { DocumentsRepository, ChunksRepository, UnitOfWork } from '@app/database';
 import { QdrantVectorStore, FakeEmbedder, IngestionService } from '@app/rag';
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../../../docker/migrations');
@@ -148,7 +148,7 @@ describe('Ingest pipeline integration (Postgres + Redis + Qdrant)', () => {
     const vectorStore = new QdrantVectorStore(qdrantClient, COLLECTION);
     const ingestionService = new IngestionService(
       docsRepo,
-      chunksRepo,
+      new UnitOfWork(db),
       embedder,
       vectorStore,
       50,

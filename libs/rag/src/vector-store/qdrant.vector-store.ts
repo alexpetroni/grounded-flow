@@ -1,5 +1,17 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
+import { z } from 'zod';
 import type { VectorStore, ChunkPoint, SearchResult } from './vector-store.interface';
+
+// Qdrant payloads are external input: validate instead of casting, so a
+// malformed point fails loudly here rather than flowing `undefined` chunkIds
+// into RRF fusion and citation grounding.
+const pointPayloadSchema = z.object({
+  chunkId: z.string(),
+  documentId: z.string(),
+  ordinal: z.number(),
+  text: z.string(),
+  metadata: z.record(z.unknown()).default({}),
+});
 
 const DENSE_VECTOR = 'dense';
 const SPARSE_VECTOR = 'sparse';
@@ -136,15 +148,11 @@ export class QdrantVectorStore implements VectorStore {
 }
 
 function mapPoint(p: { payload?: Record<string, unknown> | null; score: number }): SearchResult {
-  const payload = (p.payload ?? {}) as Record<string, unknown>;
-  return {
-    chunkId: payload['chunkId'] as string,
-    documentId: payload['documentId'] as string,
-    ordinal: payload['ordinal'] as number,
-    text: payload['text'] as string,
-    metadata: (payload['metadata'] as Record<string, unknown>) ?? {},
-    score: p.score,
-  };
+  const parsed = pointPayloadSchema.safeParse(p.payload ?? {});
+  if (!parsed.success) {
+    throw new Error(`Malformed Qdrant point payload: ${parsed.error.message}`);
+  }
+  return { ...parsed.data, score: p.score };
 }
 
 function chunkIdToUint(chunkId: string): string {

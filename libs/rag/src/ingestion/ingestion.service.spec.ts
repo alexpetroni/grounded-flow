@@ -2,7 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { IngestionService } from './ingestion.service';
 import { FakeEmbedder } from '../embedder/fake.embedder';
 import type { VectorStore } from '../vector-store/vector-store.interface';
-import type { DocumentsRepository, ChunksRepository } from '@app/database';
+import type { DocumentsRepository, ChunksRepository, UnitOfWork } from '@app/database';
+
+/** Pass-through unit-of-work: hands the same mock repos to the callback. */
+function makeUnitOfWork(chunks: ChunksRepository, documents: DocumentsRepository): UnitOfWork {
+  return {
+    withTransaction: vi.fn(
+      (fn: (repos: { chunks: ChunksRepository; documents: DocumentsRepository }) => unknown) =>
+        fn({ chunks, documents }),
+    ),
+  } as unknown as UnitOfWork;
+}
 
 function makeDocumentsRepository(): DocumentsRepository {
   return {
@@ -48,7 +58,7 @@ describe('IngestionService', () => {
     embedder = new FakeEmbedder(4);
     service = new IngestionService(
       docsRepo,
-      chunksRepo,
+      makeUnitOfWork(chunksRepo, docsRepo),
       embedder,
       vectorStore,
       50, // chunkTokens
@@ -152,7 +162,7 @@ describe('IngestionService', () => {
     };
     const svc = new IngestionService(
       docsRepo,
-      chunksRepo,
+      makeUnitOfWork(chunksRepo, docsRepo),
       failingEmbedder as unknown as FakeEmbedder,
       vectorStore,
       50,

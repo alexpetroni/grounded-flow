@@ -76,7 +76,8 @@ describe('RagQueryService', () => {
     const result = await service.query({ query: 'anything' });
 
     expect(result.repaired).toBe(true);
-    expect(result.grounded).toBe(true);
+    // A repair-fabricated anchor must not claim the answer is grounded.
+    expect(result.grounded).toBe(false);
     expect(result.citations[0]!.chunkId).toBe('real-1');
   });
 

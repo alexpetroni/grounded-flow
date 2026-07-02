@@ -63,7 +63,16 @@ export class RagQueryService {
       filter: input.filter,
       mode: input.mode,
     });
-    const reranked = await this.reranker.rerank(input.query, retrieved, topN);
+    // Graceful degradation: a rerank outage falls back to the fused retrieval
+    // order instead of failing the whole query.
+    let reranked: RerankedChunk[];
+    try {
+      reranked = await this.reranker.rerank(input.query, retrieved, topN);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Rerank failed — degrading to fused retrieval order: ${message}`);
+      reranked = retrieved.slice(0, topN).map((c) => ({ ...c, rerankScore: c.score }));
+    }
 
     if (reranked.length === 0) {
       return {

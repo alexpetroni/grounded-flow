@@ -56,7 +56,9 @@ describe('validateGrounding', () => {
     const result = validateGrounding(answer, retrieved);
 
     expect(result.repaired).toBe(true);
-    expect(result.grounded).toBe(true);
+    // Regression: a fabricated anchor citation must NOT report grounded=true —
+    // none of the model's own citations resolved to a retrieved chunk.
+    expect(result.grounded).toBe(false);
     expect(result.citations).toHaveLength(1);
     expect(result.citations[0]!.chunkId).toBe('c1'); // top retrieved chunk
     expect(result.citations[0]!.quote).toBe('first chunk text');

@@ -6,6 +6,7 @@ import * as schema from './schema/index';
 import { EventsRepository, type Db } from './repositories/events.repository';
 import { DocumentsRepository } from './repositories/documents.repository';
 import { ChunksRepository } from './repositories/chunks.repository';
+import { UnitOfWork } from './unit-of-work';
 import type { Env } from '@app/config';
 
 export const DATABASE_TOKEN = Symbol('DATABASE');
@@ -37,7 +38,12 @@ export const DATABASE_TOKEN = Symbol('DATABASE');
       useFactory: (db: Db) => new ChunksRepository(db),
       inject: [DATABASE_TOKEN],
     },
+    {
+      provide: UnitOfWork,
+      useFactory: (db: Db) => new UnitOfWork(db),
+      inject: [DATABASE_TOKEN],
+    },
   ],
-  exports: [DATABASE_TOKEN, EventsRepository, DocumentsRepository, ChunksRepository],
+  exports: [DATABASE_TOKEN, EventsRepository, DocumentsRepository, ChunksRepository, UnitOfWork],
 })
 export class DatabaseModule {}

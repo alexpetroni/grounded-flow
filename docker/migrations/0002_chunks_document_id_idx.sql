@@ -1,0 +1,1 @@
+CREATE INDEX "chunks_document_id_idx" ON "chunks" USING btree ("document_id");

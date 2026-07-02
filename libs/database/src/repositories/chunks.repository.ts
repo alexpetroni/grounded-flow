@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { asc, count, eq, sql } from 'drizzle-orm';
 import { chunks, type Chunk, type NewChunk } from '../schema/chunks';
 import type { Db } from './events.repository';
 
@@ -28,16 +28,22 @@ export class ChunksRepository {
       )
       .onConflictDoUpdate({
         target: chunks.id,
+        // `excluded` refers to the incoming row; referencing the table column
+        // here would assign each column to itself (a no-op "upsert").
         set: {
-          text: chunks.text,
-          tokenCount: chunks.tokenCount,
-          metadata: chunks.metadata,
+          text: sql`excluded.text`,
+          tokenCount: sql`excluded.token_count`,
+          metadata: sql`excluded.metadata`,
         },
       });
   }
 
   async findByDocumentId(documentId: string): Promise<Chunk[]> {
-    return this.db.select().from(chunks).where(eq(chunks.documentId, documentId));
+    return this.db
+      .select()
+      .from(chunks)
+      .where(eq(chunks.documentId, documentId))
+      .orderBy(asc(chunks.ordinal));
   }
 
   async deleteByDocumentId(documentId: string): Promise<void> {
@@ -45,7 +51,10 @@ export class ChunksRepository {
   }
 
   async countByDocumentId(documentId: string): Promise<number> {
-    const rows = await this.db.select().from(chunks).where(eq(chunks.documentId, documentId));
-    return rows.length;
+    const [row] = await this.db
+      .select({ value: count() })
+      .from(chunks)
+      .where(eq(chunks.documentId, documentId));
+    return row?.value ?? 0;
   }
 }

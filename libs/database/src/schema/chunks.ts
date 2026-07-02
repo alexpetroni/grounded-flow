@@ -1,20 +1,26 @@
-import { pgTable, text, jsonb, integer, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, jsonb, integer, timestamp, index } from 'drizzle-orm/pg-core';
 import { uuidv7 } from 'uuidv7';
 import { documents } from './documents';
 
-export const chunks = pgTable('chunks', {
-  id: text('id')
-    .primaryKey()
-    .$defaultFn(() => uuidv7()),
-  documentId: text('document_id')
-    .notNull()
-    .references(() => documents.id, { onDelete: 'cascade' }),
-  ordinal: integer('ordinal').notNull(),
-  text: text('text').notNull(),
-  tokenCount: integer('token_count').notNull(),
-  metadata: jsonb('metadata').notNull().default({}),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const chunks = pgTable(
+  'chunks',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => uuidv7()),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    ordinal: integer('ordinal').notNull(),
+    text: text('text').notNull(),
+    tokenCount: integer('token_count').notNull(),
+    metadata: jsonb('metadata').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // delete/find/count-by-document are the hot ingestion paths; the FK alone
+  // does not create an index in Postgres.
+  (t) => [index('chunks_document_id_idx').on(t.documentId)],
+);
 
 export type Chunk = typeof chunks.$inferSelect;
 export type NewChunk = typeof chunks.$inferInsert;
