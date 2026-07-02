@@ -79,7 +79,19 @@ export abstract class Workflow {
         if (!c) throw new Error(`Concurrent node not found: "${t}"`);
         return c;
       });
-      await Promise.all(concurrentConfigs.map((c) => this.executeNode(c.node, ctx)));
+      // The coordinator's process() runs as setup before the fan-out and its
+      // cleanup() runs after every child has settled — no path skips cleanup,
+      // and a failing child never leaves siblings running detached.
+      try {
+        await config.node.process(ctx);
+        const results = await Promise.allSettled(
+          concurrentConfigs.map((c) => this.executeNode(c.node, ctx)),
+        );
+        const rejected = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (rejected) throw rejected.reason;
+      } finally {
+        await config.node.cleanup();
+      }
       return config.connections[0] ?? null;
     }
 

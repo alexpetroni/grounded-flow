@@ -198,6 +198,67 @@ describe('Workflow engine', () => {
       expect(ctx.getOutput('SlowA')).toBeDefined();
       expect(ctx.getOutput('SlowB')).toBeDefined();
     });
+
+    // Regression: the coordinator node itself used to be skipped entirely on
+    // the fan-out path — its process() never ran and its cleanup() was never
+    // called, violating the cleanup-on-every-path invariant.
+    it('executes the coordinator: process() before the fan-out, cleanup() after', async () => {
+      const coord = new TestNode('Coord');
+      const child = new TestNode('Child');
+
+      const ctx = await makeWorkflow({
+        start: 'Coord',
+        nodes: [
+          { node: coord, connections: [], concurrentNodes: ['Child'] },
+          { node: child, connections: [] },
+        ],
+      }).run({});
+
+      expect(ctx.getOutput('Coord')).toBeDefined();
+      expect(coord.cleanupSpy).toHaveBeenCalledOnce();
+    });
+
+    it("calls the coordinator's cleanup() when a concurrent child throws", async () => {
+      const coord = new TestNode('Coord');
+      const bad = new ThrowingNode('Bad');
+
+      await expect(
+        makeWorkflow({
+          start: 'Coord',
+          nodes: [
+            { node: coord, connections: [], concurrentNodes: ['Bad'] },
+            { node: bad, connections: [] },
+          ],
+        }).run({}),
+      ).rejects.toThrow('Bad intentionally threw');
+
+      expect(coord.cleanupSpy).toHaveBeenCalledOnce();
+    });
+
+    // Regression: Promise.all rejected on the first failing child and left the
+    // slower siblings running detached (write-after-return / unhandled
+    // rejection hazard). run() must not settle until every child has.
+    it('awaits all siblings before rejecting when one child fails', async () => {
+      const coord = new TestNode('Coord');
+      const bad = new ThrowingNode('Bad');
+      const slow = new SlowNode('Slow', 40);
+
+      await expect(
+        makeWorkflow({
+          start: 'Coord',
+          nodes: [
+            { node: coord, connections: [], concurrentNodes: ['Bad', 'Slow'] },
+            { node: bad, connections: [] },
+            { node: slow, connections: [] },
+          ],
+        }).run({}),
+      ).rejects.toThrow('Bad intentionally threw');
+
+      // No settle hack: by the time run() rejects, the slow sibling finished
+      // and was cleaned up.
+      expect(slow.endTime).toBeGreaterThan(0);
+      expect(slow.cleanupSpy).toHaveBeenCalledOnce();
+    });
   });
 
   describe('shouldStop', () => {
