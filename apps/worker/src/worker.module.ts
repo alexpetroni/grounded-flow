@@ -7,7 +7,7 @@ import { IngestWorkerModule } from './ingest/ingest.worker.module';
 
 @Module({
   imports: [
-    AppConfigModule,
+    AppConfigModule.forRoot(),
     ObservabilityModule,
     DeadLetterModule,
     EventsWorkerModule,

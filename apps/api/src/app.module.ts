@@ -12,7 +12,7 @@ import { ApiKeyGuard } from './common/api-key.guard';
 
 @Module({
   imports: [
-    AppConfigModule,
+    AppConfigModule.forRoot(),
     ObservabilityModule,
     HealthModule,
     EventsModule,
