@@ -28,10 +28,14 @@ export const envSchema = z.object({
   QDRANT_API_KEY: z.string().default(''),
   QDRANT_COLLECTION: z.string().default('rag_chunks'),
 
-  // LLM / embeddings — optional; capabilities degrade gracefully when unset
-  LLM_PROVIDER: z.string().default('openai'),
+  // LLM / embeddings — optional; capabilities degrade gracefully when unset.
+  // Providers are enums so a typo fails loudly at boot validation instead of
+  // booting fine and hard-throwing on the first query.
+  LLM_PROVIDER: z
+    .enum(['openai', 'anthropic', 'google', 'mistral', 'ollama', 'fake'])
+    .default('openai'),
   LLM_MODEL: z.string().default('gpt-4o-mini'),
-  EMBEDDING_PROVIDER: z.string().default('openai'),
+  EMBEDDING_PROVIDER: z.enum(['openai', 'ollama', 'fake']).default('openai'),
   EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
   OPENAI_API_KEY: z.string().default(''),
   ANTHROPIC_API_KEY_APP: z.string().default(''),

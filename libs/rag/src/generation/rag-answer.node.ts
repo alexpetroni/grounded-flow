@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { ModelMessage } from 'ai';
 import { AgentNode, LlmService } from '@app/llm';
+import type { TracingService } from '@app/observability';
 import type { TaskContext } from '@app/core';
 import type { RerankedChunk } from '../rerank/reranker.interface';
 import { ragAnswerSchema, type RagAnswer } from './rag-answer.schema';
@@ -30,8 +31,8 @@ export class RagAnswerNode extends AgentNode<RagAnswer> {
   readonly token = 'RagAnswerNode';
   readonly outputSchema = ragAnswerSchema;
 
-  constructor(llmService: LlmService) {
-    super(llmService);
+  constructor(llmService: LlmService, tracing?: TracingService) {
+    super(llmService, tracing);
   }
 
   buildMessages(ctx: TaskContext): ModelMessage[] {

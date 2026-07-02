@@ -97,7 +97,16 @@ export abstract class Workflow {
 
     if (config.isRouter) {
       await this.executeNode(config.node, ctx);
-      return (config.node as BaseRouter).route(ctx);
+      const next = (config.node as BaseRouter).route(ctx);
+      // The validator only guarantees the DECLARED connections form a DAG; an
+      // unchecked route() return could jump to any registered node and bypass
+      // every graph invariant.
+      if (!config.connections.includes(next)) {
+        throw new Error(
+          `Router "${config.node.token}" routed to "${next}", which is not one of its declared connections [${config.connections.join(', ')}]`,
+        );
+      }
+      return next;
     }
 
     await this.executeNode(config.node, ctx);

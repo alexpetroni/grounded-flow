@@ -140,4 +140,30 @@ describe('WorkflowValidator', () => {
     expect(() => validator.validate(schema)).toThrow(WorkflowValidationError);
     expect(() => validator.validate(schema)).toThrow(/Duplicate/);
   });
+
+  // Regression: a concurrent child's connections validated as graph edges but
+  // the engine never follows them — the edge silently never fired.
+  it('rejects connections on a node reachable only as a concurrent child', () => {
+    const schema: WorkflowSchema = {
+      start: 'A',
+      nodes: [
+        { node: makeNode('A'), connections: [], concurrentNodes: ['B'] },
+        { node: makeNode('B'), connections: ['C'] },
+        { node: makeNode('C'), connections: [] },
+      ],
+    };
+    expect(() => validator.validate(schema)).toThrow(/never follows a concurrent child/);
+  });
+
+  it('allows connections on a concurrent child that is also a normal connection target', () => {
+    const schema: WorkflowSchema = {
+      start: 'A',
+      nodes: [
+        { node: makeNode('A'), connections: ['B'], concurrentNodes: ['B'] },
+        { node: makeNode('B'), connections: ['C'] },
+        { node: makeNode('C'), connections: [] },
+      ],
+    };
+    expect(() => validator.validate(schema)).not.toThrow();
+  });
 });

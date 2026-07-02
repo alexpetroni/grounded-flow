@@ -102,7 +102,11 @@ export class RagQueryService {
     });
     try {
       await this.answerNode.process(ctx);
-      return ctx.getOutput<RagAnswer>(this.answerNode.token);
+      const output = ctx.getOutput<RagAnswer>(this.answerNode.token);
+      if (!output) {
+        throw new Error(`${this.answerNode.token} produced no output`);
+      }
+      return output;
     } finally {
       await this.answerNode.cleanup();
     }

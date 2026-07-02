@@ -261,6 +261,32 @@ describe('Workflow engine', () => {
     });
   });
 
+  describe('router route() validation', () => {
+    // Regression: an unchecked route() return could jump to any registered
+    // node, bypassing the validated DAG.
+    it('rejects a route() return that is not a declared connection', async () => {
+      class RogueRouter extends TestRouter {
+        override route(): string {
+          return 'Elsewhere';
+        }
+      }
+      const router = new RogueRouter('R', 'Elsewhere');
+      const a = new TestNode('A');
+      const elsewhere = new TestNode('Elsewhere');
+
+      await expect(
+        makeWorkflow({
+          start: 'R',
+          nodes: [
+            { node: router, connections: ['A'], isRouter: true },
+            { node: a, connections: ['Elsewhere'] },
+            { node: elsewhere, connections: [] },
+          ],
+        }).run({}),
+      ).rejects.toThrow(/not one of its declared connections/);
+    });
+  });
+
   describe('shouldStop', () => {
     it('halts execution after a node sets shouldStop', async () => {
       const stopNode = new StopNode('Stop');

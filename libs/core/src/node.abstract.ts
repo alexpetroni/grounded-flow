@@ -11,7 +11,7 @@ export abstract class Node {
     ctx.setOutput(this.token, value);
   }
 
-  getOutput<T>(ctx: TaskContext): T {
+  getOutput<T>(ctx: TaskContext): T | undefined {
     return ctx.getOutput<T>(this.token);
   }
 

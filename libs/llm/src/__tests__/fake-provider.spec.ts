@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateObject, generateText } from 'ai';
+import { generateObject, generateText, streamText } from 'ai';
 import type { LanguageModel, ModelMessage } from 'ai';
 import { z } from 'zod';
 import { createFakeLanguageModel } from '../fake-provider';
@@ -43,5 +43,24 @@ describe('createFakeLanguageModel', () => {
     const model = createFakeLanguageModel({ responses: ['plain text'] });
     const { text } = await generateText({ model, messages: [{ role: 'user', content: 'hi' }] });
     expect(text).toBe('plain text');
+  });
+
+  // Regression: `responses: []` used to index responses[-1] and crash
+  // doStream on undefined.split(); generate and stream also shared one
+  // counter, so mixed flows advanced each other's response sequence.
+  it('falls back to the default response for an explicitly empty responses array', async () => {
+    const model = createFakeLanguageModel({ responses: [] });
+    const result = await generateText({ model, prompt: 'hi' });
+    expect(result.text).toBe('Hello from fake provider.');
+  });
+
+  it('keeps independent response sequences for generate and stream', async () => {
+    const model = createFakeLanguageModel({ responses: ['first', 'second'] });
+    const gen1 = await generateText({ model, prompt: 'a' });
+    const stream1 = streamText({ model, prompt: 'b' });
+    let streamed = '';
+    for await (const chunk of stream1.textStream) streamed += chunk;
+    expect(gen1.text).toBe('first');
+    expect(streamed).toBe('first'); // stream's own sequence, not advanced by generate
   });
 });

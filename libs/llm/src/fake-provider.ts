@@ -45,15 +45,23 @@ function coerceResponse(raw: string, opts?: DoGenerateOptions): string {
 }
 
 export function createFakeLanguageModel(options: FakeLanguageModelOptions = {}): LanguageModel {
-  const responses = options.responses ?? ['Hello from fake provider.'];
-  let callCount = 0;
+  // `?.length` (not `??`) so an explicitly-empty array also gets the default —
+  // responses[-1] would flow undefined into `.split()` and crash.
+  const responses = options.responses?.length ? options.responses : ['Hello from fake provider.'];
+  // Independent counters: a flow that both generates and streams must not have
+  // one call surprisingly advance the other's response sequence.
+  let generateCount = 0;
+  let streamCount = 0;
 
   return new MockLanguageModelV3({
     provider: 'fake',
     modelId: 'fake-model',
     // Cast via unknown to bypass strict LanguageModelV3GenerateResult typing in mock constructor
     doGenerate: (async (opts: DoGenerateOptions) => {
-      const text = coerceResponse(responses[Math.min(callCount++, responses.length - 1)]!, opts);
+      const text = coerceResponse(
+        responses[Math.min(generateCount++, responses.length - 1)]!,
+        opts,
+      );
       return {
         content: [{ type: 'text' as const, text }],
         finishReason: STOP_FINISH_REASON,
@@ -62,7 +70,7 @@ export function createFakeLanguageModel(options: FakeLanguageModelOptions = {}):
       };
     }) as unknown as MockLanguageModelV3['doGenerate'],
     doStream: (async () => {
-      const text = responses[Math.min(callCount++, responses.length - 1)];
+      const text = responses[Math.min(streamCount++, responses.length - 1)]!;
       const words = text.split(' ');
       const textId = 'text-0';
       return {

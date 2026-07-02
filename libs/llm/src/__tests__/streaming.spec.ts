@@ -64,7 +64,7 @@ describe('AgentStreamingNode', () => {
       /* consume */
     }
 
-    const output = ctx.getOutput<{ text: string }>(node.token);
+    const output = ctx.getOutput<{ text: string }>(node.token)!;
     expect(output.text).toContain('hello');
   });
 

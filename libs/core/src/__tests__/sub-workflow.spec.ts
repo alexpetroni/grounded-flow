@@ -47,7 +47,7 @@ class RunChildNode extends SubWorkflowNode {
 class ConsumerNode extends Node {
   readonly token = 'Consumer';
   async process(ctx: TaskContext): Promise<TaskContext> {
-    const result = ctx.getOutput<SubWorkflowResult>('RunChild');
+    const result = ctx.getOutput<SubWorkflowResult>('RunChild')!;
     const childOut = result.nodes['Child'] as { value: number };
     this.saveOutput(ctx, { doubled: childOut.value });
     return ctx;
@@ -105,7 +105,7 @@ describe('SubWorkflowNode composition', () => {
     const { parent } = makeComposite();
     const ctx = await parent.run({ input: 21 });
 
-    const result = ctx.getOutput<SubWorkflowResult>('RunChild');
+    const result = ctx.getOutput<SubWorkflowResult>('RunChild')!;
     expect(result.workflowType).toBe('child');
     expect(result.event).toEqual({ n: 21 });
     expect(result.nodes['Child']).toMatchObject({ value: 42 });
@@ -121,13 +121,13 @@ describe('SubWorkflowNode composition', () => {
     // The parent context has no top-level "Child" key; it lives only nested
     // inside the RunChild result.
     expect(ctx.getOutput('Child')).toBeUndefined();
-    expect(ctx.getOutput<SubWorkflowResult>('RunChild').nodes['Child']).toBeDefined();
+    expect(ctx.getOutput<SubWorkflowResult>('RunChild')!.nodes['Child']).toBeDefined();
   });
 
   it('shares the parent traceId with the child for trace continuity', async () => {
     const { parent } = makeComposite();
     const ctx = await parent.run({ input: 1 }, 'trace-xyz');
-    const result = ctx.getOutput<SubWorkflowResult>('RunChild');
+    const result = ctx.getOutput<SubWorkflowResult>('RunChild')!;
     expect((result.nodes['Child'] as { traceId: string }).traceId).toBe('trace-xyz');
   });
 
@@ -150,7 +150,7 @@ describe('SubWorkflowNode composition', () => {
 
     const ctx = await parent.run({ input: 3 });
     expect(ctx.getOutput('Child')).toEqual({ value: 'parent-owns-this' });
-    expect(ctx.getOutput<SubWorkflowResult>('RunChild').nodes['Child']).toMatchObject({
+    expect(ctx.getOutput<SubWorkflowResult>('RunChild')!.nodes['Child']).toMatchObject({
       value: 6,
     });
   });

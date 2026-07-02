@@ -23,8 +23,8 @@ export class LlmService {
       return createFakeLanguageModel();
     }
 
-    try {
-      return createLanguageModel({
+    return this.create('language', provider, () =>
+      createLanguageModel({
         provider,
         model,
         openaiApiKey: this.config?.get('OPENAI_API_KEY', { infer: true }),
@@ -32,14 +32,8 @@ export class LlmService {
         googleApiKey: this.config?.get('GOOGLE_API_KEY', { infer: true }),
         mistralApiKey: this.config?.get('MISTRAL_API_KEY', { infer: true }),
         ollamaBaseUrl: this.config?.get('OLLAMA_BASE_URL', { infer: true }),
-      });
-    } catch (err) {
-      if (err instanceof UnknownProviderError) throw err;
-      this.logger.warn(
-        `Failed to create language model for provider "${provider}": ${String(err)}`,
-      );
-      throw err;
-    }
+      }),
+    );
   }
 
   getEmbeddingModel(): EmbeddingModel {
@@ -50,20 +44,27 @@ export class LlmService {
       return createFakeEmbeddingModel();
     }
 
-    try {
-      return createEmbeddingModel({
+    return this.create('embedding', provider, () =>
+      createEmbeddingModel({
         provider,
         model,
         embeddingProvider: provider,
         embeddingModel: model,
         openaiApiKey: this.config?.get('OPENAI_API_KEY', { infer: true }),
         ollamaBaseUrl: this.config?.get('OLLAMA_BASE_URL', { infer: true }),
-      });
+      }),
+    );
+  }
+
+  private create<T>(kind: 'language' | 'embedding', provider: string, factory: () => T): T {
+    try {
+      return factory();
     } catch (err) {
-      if (err instanceof UnknownProviderError) throw err;
-      this.logger.warn(
-        `Failed to create embedding model for provider "${provider}": ${String(err)}`,
-      );
+      if (!(err instanceof UnknownProviderError)) {
+        this.logger.warn(
+          `Failed to create ${kind} model for provider "${provider}": ${String(err)}`,
+        );
+      }
       throw err;
     }
   }

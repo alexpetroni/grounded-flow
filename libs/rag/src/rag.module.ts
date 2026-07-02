@@ -5,6 +5,7 @@ import type { EmbeddingModel } from 'ai';
 import { DatabaseModule } from '@app/database';
 import { DocumentsRepository, UnitOfWork } from '@app/database';
 import { createEmbeddingModel, LlmModule, LlmService } from '@app/llm';
+import { TracingService } from '@app/observability';
 import type { Env } from '@app/config';
 import { AiSdkEmbedder } from './embedder/ai-sdk.embedder';
 import { FakeEmbedder } from './embedder/fake.embedder';
@@ -140,8 +141,9 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
     },
     {
       provide: RagAnswerNode,
-      useFactory: (llmService: LlmService) => new RagAnswerNode(llmService),
-      inject: [LlmService],
+      useFactory: (llmService: LlmService, tracing?: TracingService) =>
+        new RagAnswerNode(llmService, tracing),
+      inject: [LlmService, { token: TracingService, optional: true }],
     },
     {
       provide: RagQueryService,

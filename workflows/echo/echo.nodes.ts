@@ -23,6 +23,9 @@ export class UpperCaseNode extends Node {
 
   async process(ctx: TaskContext): Promise<TaskContext> {
     const echoOutput = ctx.getOutput<{ echo: string }>('EchoNode');
+    if (!echoOutput) {
+      throw new Error('UpperCaseNode requires EchoNode output, but it has not run');
+    }
     this.saveOutput(ctx, { result: echoOutput.echo.toUpperCase() });
     return ctx;
   }

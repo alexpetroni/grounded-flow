@@ -17,8 +17,13 @@ export class TaskContext {
     this._nodes.set(token, value);
   }
 
-  getOutput<T>(token: string): T {
-    return this._nodes.get(token) as T;
+  /**
+   * Returns the node's saved output, or `undefined` when the node has not run
+   * (or saved nothing). The honest `| undefined` forces callers to handle the
+   * missing case instead of crashing on a phantom value.
+   */
+  getOutput<T>(token: string): T | undefined {
+    return this._nodes.get(token) as T | undefined;
   }
 
   get nodes(): ReadonlyMap<string, unknown> {

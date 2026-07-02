@@ -73,11 +73,21 @@ export class WorkflowValidator {
     schema: WorkflowSchema,
     nodeMap: Map<string, NodeConfig>,
   ): void {
+    // Nodes reachable only as concurrent children never have their connections
+    // followed by the engine — a connection there would validate but silently
+    // never fire, so reject it up front.
+    const connectionTargets = new Set(schema.nodes.flatMap((c) => c.connections));
     for (const config of schema.nodes) {
       for (const concurrent of config.concurrentNodes ?? []) {
         if (!nodeMap.has(concurrent)) {
           throw new WorkflowValidationError(
             `Node "${config.node.token}" references unknown concurrentNode "${concurrent}"`,
+          );
+        }
+        const child = nodeMap.get(concurrent)!;
+        if (child.connections.length > 0 && !connectionTargets.has(concurrent)) {
+          throw new WorkflowValidationError(
+            `Concurrent node "${concurrent}" declares connections, but the engine never follows a concurrent child's connections — they would silently not run`,
           );
         }
       }
