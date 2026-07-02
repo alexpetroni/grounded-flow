@@ -44,21 +44,17 @@ export class IngestionService {
       const loader = getLoader(mimeType);
       const loaded = await loader.load(content, source, metadata);
 
-      // Step 2: Ensure collection exists, then delete existing chunks (re-ingest idempotency)
-      await this.vectorStore.ensureCollection(this.embedder.dimensions);
-      await this.vectorStore.deleteByDocumentId(documentId);
-      await this.chunksRepository.deleteByDocumentId(documentId);
-
-      // Step 3: Chunk
+      // Step 2: Chunk
       const rawChunks = this.chunker.chunk(loaded.text);
       if (rawChunks.length === 0) {
         throw new Error('Document produced no chunks after loading');
       }
 
-      // Step 4: Embed
+      // Step 3: Embed. All fallible work (load/chunk/embed) must complete
+      // before the existing copy is touched: a transient failure here must
+      // never leave a previously-healthy document without chunks.
       const embedResults = await this.embedder.embed(rawChunks.map((c) => c.text));
 
-      // Step 5: Persist chunks + upsert vectors
       const { uuidv7 } = await import('uuidv7');
       const chunkRows = rawChunks.map((chunk, i) => {
         const chunkId = uuidv7();
@@ -73,7 +69,13 @@ export class IngestionService {
         };
       });
 
+      // Step 4: Swap — delete-by-document then write keeps re-ingest
+      // idempotent; a failure mid-swap is healed by retrying the ingest.
+      await this.vectorStore.ensureCollection(this.embedder.dimensions);
+      await this.chunksRepository.deleteByDocumentId(documentId);
       await this.chunksRepository.upsertMany(chunkRows);
+
+      await this.vectorStore.deleteByDocumentId(documentId);
 
       await this.vectorStore.upsert(
         chunkRows.map((row) => ({

@@ -141,4 +141,53 @@ describe('IngestionService', () => {
     expect(ensureCall!).toBeLessThan(deleteCall!);
     expect(deleteCall!).toBeLessThan(upsertCall!);
   });
+
+  // Regression: re-ingest used to delete the existing chunks/points BEFORE
+  // embedding, so a transient embedding failure wiped a previously-healthy
+  // document. All fallible work must happen before the old copy is touched.
+  it('does not delete the existing copy when embedding fails (re-ingest is safe to retry)', async () => {
+    const failingEmbedder = {
+      dimensions: 4,
+      embed: vi.fn().mockRejectedValue(new Error('embedding provider outage')),
+    };
+    const svc = new IngestionService(
+      docsRepo,
+      chunksRepo,
+      failingEmbedder as unknown as FakeEmbedder,
+      vectorStore,
+      50,
+      10,
+    );
+
+    await expect(
+      svc.ingest({
+        documentId: 'doc-retry',
+        content: Buffer.from('Existing healthy document being re-ingested.'),
+        mimeType: 'text/plain',
+        source: 'f.txt',
+      }),
+    ).rejects.toThrow('embedding provider outage');
+
+    expect(chunksRepo.deleteByDocumentId).not.toHaveBeenCalled();
+    expect(vectorStore.deleteByDocumentId).not.toHaveBeenCalled();
+    expect(chunksRepo.upsertMany).not.toHaveBeenCalled();
+    expect(vectorStore.upsert).not.toHaveBeenCalled();
+    expect(docsRepo.fail).toHaveBeenCalledWith('doc-retry', 'embedding provider outage');
+  });
+
+  it('embeds before deleting the existing copy', async () => {
+    const embedSpy = vi.spyOn(embedder, 'embed');
+    await service.ingest({
+      documentId: 'doc-order',
+      content: Buffer.from('Ordering check: embed must precede delete.'),
+      mimeType: 'text/plain',
+      source: 'f.txt',
+    });
+
+    const embedCall = embedSpy.mock.invocationCallOrder[0];
+    const pgDeleteCall = vi.mocked(chunksRepo.deleteByDocumentId).mock.invocationCallOrder[0];
+    const qdrantDeleteCall = vi.mocked(vectorStore.deleteByDocumentId).mock.invocationCallOrder[0];
+    expect(embedCall!).toBeLessThan(pgDeleteCall!);
+    expect(embedCall!).toBeLessThan(qdrantDeleteCall!);
+  });
 });
