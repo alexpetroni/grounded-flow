@@ -28,3 +28,4 @@ npm-debug.log*
 
 # runtime data (local volumes if any are bind-mounted)
 .data/
+.refactor-out/

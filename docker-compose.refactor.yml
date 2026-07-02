@@ -1,0 +1,38 @@
+# Launches the autonomous refactor agent in ISOLATION.
+#
+#   bash scripts/refactor.sh            # preferred entrypoint (preflight + import)
+#   REFACTOR_DRY_RUN=1 bash scripts/refactor.sh   # plumbing check only, no agent
+#
+# Isolation model (differs from docker-compose.builder.yml, which works in-place):
+# - The host repo is mounted READ-ONLY at /src; the agent works in a container-local
+#   clone (/work) on branch refactor/architecture and can never touch your tree.
+# - Results leave the container only as a git bundle + logs in ./.refactor-out.
+# - The host Docker socket is mounted for Testcontainers + compose verification;
+#   TESTCONTAINERS_HOST_OVERRIDE lets in-container tests reach sibling containers.
+# - Credentials come from .env.builder (gitignored, operator-owned) exactly like the
+#   original builder: CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY.
+services:
+  refactor:
+    build:
+      context: .
+      dockerfile: docker/builder/Dockerfile
+    image: rag-builder:latest
+    env_file:
+      - path: .env.builder
+        required: false
+    environment:
+      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-RAG Refactor Agent}
+      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:-refactor@rag.local}
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+      REFACTOR_DRY_RUN: ${REFACTOR_DRY_RUN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${PWD}:/src:ro
+      - ${PWD}/.refactor-out:/outbox
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /src
+    entrypoint: ["/bin/bash", "/src/scripts/refactor-entrypoint.sh"]
+    stdin_open: true
+    tty: true
