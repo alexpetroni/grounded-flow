@@ -52,7 +52,12 @@ gates() {
   log "Runner gates (${tag}): lint / typecheck / test"
   pnpm lint >>"$OUT/logs/gates-$tag.log" 2>&1 || return 1
   pnpm typecheck >>"$OUT/logs/gates-$tag.log" 2>&1 || return 1
-  pnpm test >>"$OUT/logs/gates-$tag.log" 2>&1 || return 1
+  if ! pnpm test >>"$OUT/logs/gates-$tag.log" 2>&1; then
+    # One retry absorbs residual Testcontainers timing flakes in an unattended
+    # multi-hour run; a genuine regression fails twice and still gates.
+    log "Gate test run failed (${tag}) — one flake-guard retry"
+    pnpm test >>"$OUT/logs/gates-$tag.log" 2>&1 || return 1
+  fi
 }
 
 # Launch claude; retry only when the failure looks like a transient API/network

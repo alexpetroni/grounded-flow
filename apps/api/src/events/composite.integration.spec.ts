@@ -32,7 +32,15 @@ async function startContainers(): Promise<{
   const pgBuilder = attachOrExpose(
     new GenericContainer('postgres:16-bookworm')
       .withEnvironment({ POSTGRES_DB: 'rag_test', POSTGRES_USER: 'rag', POSTGRES_PASSWORD: 'rag' })
-      .withWaitStrategy(Wait.forSuccessfulCommand('psql -U rag -d rag_test -c "SELECT 1"')),
+      .withWaitStrategy(
+        // Postgres inits, RESTARTS, then listens: a psql check via the unix
+        // socket passes during the first phase, before TCP is actually up
+        // (flaky ECONNREFUSED through the docker gateway). The second "ready"
+        // log line marks the real, post-restart listen.
+        Wait.forLogMessage(/database system is ready to accept connections/, 2).withStartupTimeout(
+          60_000,
+        ),
+      ),
     net,
     'pg_composite_test',
     5432,
