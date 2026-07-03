@@ -7,7 +7,8 @@ import type { Document } from '@app/database';
 import { INGEST_QUEUE } from '@app/core';
 import type { Env } from '@app/config';
 import { SUPPORTED_MIME_TYPES } from '@app/rag';
-import type { CreateDocumentDto } from './documents.dto';
+import { enqueueJob } from '../common/enqueue-job';
+import { parseOrThrow } from '../common/validate-body';
 import { CreateDocumentDto as CreateDocumentSchema } from './documents.dto';
 
 export interface IngestJobData {
@@ -27,11 +28,7 @@ export class DocumentsService {
   ) {}
 
   async create(body: unknown): Promise<{ id: string; status: string }> {
-    const parseResult = CreateDocumentSchema.safeParse(body);
-    if (!parseResult.success) {
-      throw new BadRequestException(parseResult.error.flatten());
-    }
-    const dto: CreateDocumentDto = parseResult.data;
+    const dto = parseOrThrow(CreateDocumentSchema, body);
 
     if (!SUPPORTED_MIME_TYPES.includes(dto.mimeType as (typeof SUPPORTED_MIME_TYPES)[number])) {
       throw new BadRequestException(`Unsupported MIME type: ${dto.mimeType}`);
@@ -43,7 +40,8 @@ export class DocumentsService {
       metadata: dto.metadata,
     });
 
-    await this.ingestQueue.add(
+    await enqueueJob(
+      this.ingestQueue,
       'ingest',
       {
         documentId: doc.id,
@@ -52,15 +50,7 @@ export class DocumentsService {
         source: dto.source,
         metadata: dto.metadata,
       },
-      {
-        attempts: this.config.get('BULLMQ_ATTEMPTS', { infer: true }),
-        backoff: {
-          type: 'exponential',
-          delay: this.config.get('BULLMQ_BACKOFF_MS', { infer: true }),
-        },
-        removeOnComplete: 100,
-        removeOnFail: 100,
-      },
+      this.config,
     );
 
     return { id: doc.id, status: doc.status };

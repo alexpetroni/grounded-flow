@@ -61,8 +61,7 @@ describe('IngestionService', () => {
       makeUnitOfWork(chunksRepo, docsRepo),
       embedder,
       vectorStore,
-      50, // chunkTokens
-      10, // overlapTokens
+      { chunkTokens: 50, overlapTokens: 10 },
     );
   });
 
@@ -165,8 +164,7 @@ describe('IngestionService', () => {
       makeUnitOfWork(chunksRepo, docsRepo),
       failingEmbedder as unknown as FakeEmbedder,
       vectorStore,
-      50,
-      10,
+      { chunkTokens: 50, overlapTokens: 10 },
     );
 
     await expect(

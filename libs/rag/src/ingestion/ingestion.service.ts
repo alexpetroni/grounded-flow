@@ -16,6 +16,11 @@ export interface IngestInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface IngestionOptions {
+  chunkTokens: number;
+  overlapTokens: number;
+}
+
 @Injectable()
 export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
@@ -26,10 +31,9 @@ export class IngestionService {
     private readonly unitOfWork: UnitOfWork,
     private readonly embedder: Embedder,
     private readonly vectorStore: VectorStore,
-    chunkTokens: number,
-    overlapTokens: number,
+    options: IngestionOptions,
   ) {
-    this.chunker = new Chunker({ chunkTokens, overlapTokens });
+    this.chunker = new Chunker(options);
   }
 
   async ingest(input: IngestInput): Promise<void> {

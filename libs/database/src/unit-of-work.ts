@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import type { Db } from './db.types';
+import { Inject, Injectable } from '@nestjs/common';
+import { DATABASE_TOKEN, type Db } from './db.types';
 import { ChunksRepository } from './repositories/chunks.repository';
 import { DocumentsRepository } from './repositories/documents.repository';
 import { EventsRepository } from './repositories/events.repository';
@@ -16,7 +16,7 @@ export interface TransactionalRepositories {
  */
 @Injectable()
 export class UnitOfWork {
-  constructor(private readonly db: Db) {}
+  constructor(@Inject(DATABASE_TOKEN) private readonly db: Db) {}
 
   async withTransaction<T>(fn: (repos: TransactionalRepositories) => Promise<T>): Promise<T> {
     return this.db.transaction(async (tx) =>

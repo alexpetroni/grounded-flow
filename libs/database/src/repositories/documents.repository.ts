@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import {
   documents,
@@ -6,11 +6,11 @@ import {
   type DocumentStatus,
   type NewDocument,
 } from '../schema/documents';
-import type { Db } from '../db.types';
+import { DATABASE_TOKEN, type Db } from '../db.types';
 
 @Injectable()
 export class DocumentsRepository {
-  constructor(private readonly db: Db) {}
+  constructor(@Inject(DATABASE_TOKEN) private readonly db: Db) {}
 
   async create(data: Pick<NewDocument, 'source' | 'mimeType' | 'metadata'>): Promise<Document> {
     const [doc] = await this.db

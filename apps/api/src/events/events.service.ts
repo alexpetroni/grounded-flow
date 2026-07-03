@@ -1,12 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
-import { ZodError } from 'zod';
 import { EventsRepository } from '@app/database';
 import { EVENTS_QUEUE } from '@app/core';
 import type { Env } from '@app/config';
-import { createEventSchema, type CreateEventDto, type EventResponseDto } from './events.dto';
+import { enqueueJob } from '../common/enqueue-job';
+import { parseOrThrow } from '../common/validate-body';
+import { createEventSchema, type EventResponseDto } from './events.dto';
 
 @Injectable()
 export class EventsService {
@@ -17,39 +18,14 @@ export class EventsService {
   ) {}
 
   async create(body: unknown): Promise<{ eventId: string; status: string }> {
-    let dto: CreateEventDto;
-    try {
-      dto = createEventSchema.parse(body);
-    } catch (err) {
-      if (err instanceof ZodError) {
-        throw new BadRequestException({
-          message: 'Validation failed',
-          errors: err.errors,
-        });
-      }
-      throw err;
-    }
+    const dto = parseOrThrow(createEventSchema, body);
 
     const event = await this.eventsRepository.create({
       workflowType: dto.workflowType,
       data: dto.data,
     });
 
-    await this.eventsQueue.add(
-      'process',
-      { eventId: event.id },
-      {
-        attempts: this.config.get('BULLMQ_ATTEMPTS', { infer: true }),
-        backoff: {
-          type: 'exponential',
-          delay: this.config.get('BULLMQ_BACKOFF_MS', { infer: true }),
-        },
-        // Bounded retention: event state lives in Postgres, not the queue —
-        // unbounded Redis job history eventually exhausts memory.
-        removeOnComplete: 100,
-        removeOnFail: 100,
-      },
-    );
+    await enqueueJob(this.eventsQueue, 'process', { eventId: event.id }, this.config);
 
     return { eventId: event.id, status: 'pending' };
   }

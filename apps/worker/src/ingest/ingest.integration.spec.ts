@@ -135,8 +135,7 @@ describe('Ingest pipeline integration (Postgres + Redis + Qdrant)', () => {
       new UnitOfWork(db),
       embedder,
       vectorStore,
-      50,
-      10,
+      { chunkTokens: 50, overlapTokens: 10 },
     );
 
     bullWorker = new Worker<IngestJobData>(

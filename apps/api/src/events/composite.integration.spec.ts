@@ -96,8 +96,9 @@ describe('Composite workflow integration (events path)', () => {
       db as Parameters<typeof EventsRepository.prototype.constructor>[0],
     );
 
-    // Build the registry the same way WorkflowsModule does: register echo, then
-    // construct the composite with that shared registry and register it too.
+    // Build the registry by hand (mirrors what WorkflowsModule's onModuleInit
+    // does): register echo, then construct the composite with that shared
+    // registry and register it too.
     const registry = new WorkflowRegistry();
     registry.register(EchoWorkflow.TYPE, new EchoWorkflow(new EchoNode(), new UpperCaseNode()));
     const composite = new CompositeWorkflow(
