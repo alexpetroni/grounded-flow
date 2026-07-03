@@ -1,13 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TaskContext } from '@app/core';
 import type { Embedder } from '../embedder/embedder.interface';
 import type { Retriever, RetrievalMode } from '../retrieval/retriever.interface';
 import type { Reranker, RerankedChunk } from '../rerank/reranker.interface';
-import {
-  RagAnswerNode,
-  RAG_INPUT_KEY,
-  type RagGenerationInput,
-} from '../generation/rag-answer.node';
+import { RagAnswerNode } from '../generation/rag-answer.node';
 import { validateGrounding, type GroundedAnswer } from '../generation/grounding';
 import type { RagAnswer } from '../generation/rag-answer.schema';
 
@@ -96,20 +91,7 @@ export class RagQueryService {
   }
 
   private async generate(question: string, chunks: RerankedChunk[]): Promise<RagAnswer> {
-    const generationInput: RagGenerationInput = { question, chunks };
-    const ctx = new TaskContext({ query: question }, undefined, {
-      [RAG_INPUT_KEY]: generationInput,
-    });
-    try {
-      await this.answerNode.process(ctx);
-      const output = ctx.getOutput<RagAnswer>(this.answerNode.token);
-      if (!output) {
-        throw new Error(`${this.answerNode.token} produced no output`);
-      }
-      return output;
-    } finally {
-      await this.answerNode.cleanup();
-    }
+    return this.answerNode.answer({ question, chunks });
   }
 }
 

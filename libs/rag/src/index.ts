@@ -42,8 +42,7 @@ export { CohereReranker } from './rerank/cohere.reranker';
 export type { CohereRerankerOptions, FetchFn } from './rerank/cohere.reranker';
 
 // Generation + grounding
-export { RagAnswerNode, RAG_INPUT_KEY } from './generation/rag-answer.node';
-export type { RagGenerationInput } from './generation/rag-answer.node';
+export { RagAnswerNode } from './generation/rag-answer.node';
 export { ragAnswerSchema, citationSchema } from './generation/rag-answer.schema';
 export type { RagAnswer, Citation } from './generation/rag-answer.schema';
 export { validateGrounding } from './generation/grounding';
