@@ -2,8 +2,9 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { RagModule } from '@app/rag';
+import { INGEST_QUEUE } from '@app/core';
 import { parseRedisUrl, type Env } from '@app/config';
-import { IngestProcessor, INGEST_QUEUE } from './ingest.processor';
+import { IngestProcessor } from './ingest.processor';
 
 @Module({
   imports: [

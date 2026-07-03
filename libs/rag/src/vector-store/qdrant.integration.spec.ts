@@ -58,13 +58,13 @@ function makePoint(documentId: string, ordinal: number) {
 }
 
 describe('QdrantVectorStore', () => {
-  it('upserts points and retrieves them via search', async () => {
+  it('upserts points and retrieves them via searchDense', async () => {
     const docId = uuidv7();
     const points = [makePoint(docId, 0), makePoint(docId, 1)];
     await store.upsert(points);
 
     const [embedResult] = await embedder.embed(['machine learning']);
-    const results = await store.search(embedResult!, 5);
+    const results = await store.searchDense(embedResult!.dense.values, 5);
     expect(results.length).toBeGreaterThan(0);
   });
 
@@ -88,7 +88,7 @@ describe('QdrantVectorStore', () => {
     await store.upsert([point]); // re-upsert same point
 
     const [embedResult] = await embedder.embed(['idempotency test chunk']);
-    const results = await store.search(embedResult!, 20);
+    const results = await store.searchDense(embedResult!.dense.values, 20);
     const matching = results.filter((r) => r.chunkId === chunkId);
     expect(matching).toHaveLength(1);
   });
@@ -101,7 +101,7 @@ describe('QdrantVectorStore', () => {
     await store.deleteByDocumentId(docId);
 
     const [embedResult] = await embedder.embed(['chunk ordinal']);
-    const results = await store.search(embedResult!, 50);
+    const results = await store.searchDense(embedResult!.dense.values, 50);
     const remaining = results.filter((r) => r.documentId === docId);
     expect(remaining).toHaveLength(0);
   });

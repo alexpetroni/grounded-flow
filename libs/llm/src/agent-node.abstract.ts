@@ -1,25 +1,15 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { generateObject } from 'ai';
-import type { ModelMessage, GenerateObjectResult } from 'ai';
+import type { ModelMessage } from 'ai';
 import { z } from 'zod';
 import { Node } from '@app/core';
 import type { TaskContext } from '@app/core';
 import { TracingService } from '@app/observability';
 import { LlmService } from './llm.service';
-
-type GenerateFn = (opts: {
-  model: ReturnType<LlmService['getLanguageModel']>;
-  schema: z.ZodTypeAny;
-  messages: ModelMessage[];
-  maxRetries: number;
-  experimental_telemetry: { isEnabled: boolean; functionId?: string };
-}) => Promise<GenerateObjectResult<unknown>>;
-
-const safeGenerateObject = generateObject as unknown as GenerateFn;
+import { generateStructured } from './generate-structured';
 
 @Injectable()
 export abstract class AgentNode<TOutput = unknown> extends Node {
-  abstract readonly outputSchema: z.ZodTypeAny;
+  abstract readonly outputSchema: z.ZodType<TOutput>;
 
   constructor(
     protected readonly llmService: LlmService,
@@ -36,17 +26,13 @@ export abstract class AgentNode<TOutput = unknown> extends Node {
   }
 
   async process(ctx: TaskContext): Promise<TaskContext> {
-    const model = this.llmService.getLanguageModel();
-
-    const result = await safeGenerateObject({
-      model,
+    const output = await generateStructured({
+      llmService: this.llmService,
       schema: this.outputSchema,
       messages: this.buildMessages(ctx),
-      maxRetries: 3,
-      experimental_telemetry: this.telemetry(),
+      telemetry: this.telemetry(),
     });
-
-    this.saveOutput(ctx, result.object as TOutput);
+    this.saveOutput(ctx, output);
     return ctx;
   }
 }

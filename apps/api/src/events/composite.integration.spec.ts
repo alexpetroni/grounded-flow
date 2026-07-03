@@ -8,13 +8,14 @@ import path from 'path';
 import { EventsRepository } from '@app/database';
 import * as schema from '@app/database';
 import { WorkflowRegistry } from '@app/core';
-import { EchoWorkflow } from '../../../../workflows/echo/echo.workflow';
-import { EchoNode, UpperCaseNode } from '../../../../workflows/echo/echo.nodes';
-import { CompositeWorkflow } from '../../../../workflows/composite/composite.workflow';
 import {
+  EchoWorkflow,
+  EchoNode,
+  UpperCaseNode,
+  CompositeWorkflow,
   EchoSubWorkflowNode,
   SummarizeNode,
-} from '../../../../workflows/composite/composite.nodes';
+} from '@app/workflows';
 import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../../../docker/migrations');
@@ -95,8 +96,9 @@ describe('Composite workflow integration (events path)', () => {
       db as Parameters<typeof EventsRepository.prototype.constructor>[0],
     );
 
-    // Build the registry the same way WorkflowsModule does: register echo, then
-    // construct the composite with that shared registry and register it too.
+    // Build the registry by hand (mirrors what WorkflowsModule's onModuleInit
+    // does): register echo, then construct the composite with that shared
+    // registry and register it too.
     const registry = new WorkflowRegistry();
     registry.register(EchoWorkflow.TYPE, new EchoWorkflow(new EchoNode(), new UpperCaseNode()));
     const composite = new CompositeWorkflow(

@@ -39,7 +39,7 @@ The libraries:
 
 | Lib | Responsibility |
 |---|---|
-| `libs/core` | Workflow engine: `Node`, `Workflow`, `BaseRouter`, `ConcurrentNode`, `SubWorkflowNode`, `TaskContext`, validator, registry |
+| `libs/core` | Workflow engine: `Node`, `Workflow`, `BaseRouter`, `SubWorkflowNode`, `TaskContext`, validator, registry |
 | `libs/llm` | Vercel AI SDK provider factory, `AgentNode` (structured output) + `AgentStreamingNode` (SSE), `FakeProvider` |
 | `libs/rag` | Loaders → chunker → embedder → Qdrant store → hybrid retrieval → rerank → grounded generation → eval |
 | `libs/database` | Drizzle schema + repositories (`events`, `documents`, `chunks`) |
@@ -141,25 +141,45 @@ The typed state bag passed to every node:
 
 ### WorkflowSchema
 
-A workflow declares its graph by returning a `WorkflowSchema`:
+A workflow declares its graph by returning a `WorkflowSchema`. Each node config is one of three
+kinds, discriminated on `kind` — the shape itself makes a router-only branch or a dangling
+fan-out unrepresentable:
 
 ```ts
-interface NodeConfig {
+interface LinearNodeConfig {          // a plain step: at most one outgoing edge
+  kind: 'linear';
   node: Node;
-  connections: string[];      // next node token(s). >1 allowed ONLY for routers.
-  isRouter?: boolean;         // node is a BaseRouter; route() picks the next token
-  concurrentNodes?: string[]; // fan-out: run these node tokens in parallel
+  next?: string;                      // omit for a terminal node
 }
 
+interface RouterNodeConfig {          // the ONLY kind allowed multiple outgoing edges
+  kind: 'router';
+  node: BaseRouter;
+  connections: string[];              // declared branches; route() must return one of these
+}
+
+interface ConcurrentNodeConfig {      // fan-out: children run in parallel, then `next`
+  kind: 'concurrent';
+  node: Node;                         // coordinator: process()/cleanup() wrap the fan-out
+  children: string[];
+  next?: string;
+}
+
+type NodeConfig = LinearNodeConfig | RouterNodeConfig | ConcurrentNodeConfig;
+
 interface WorkflowSchema {
-  start: string;              // token of the first node
+  start: string;                      // token of the first node
   nodes: NodeConfig[];
-  eventSchema?: ZodSchema;    // validates ctx.event at run() time
+  eventSchema?: ZodSchema;            // validates ctx.event at run() time
 }
 ```
 
-The `WorkflowValidator` runs on every `run()`/`runStream()` and rejects: cycles, unreachable nodes,
-non-routers with >1 connection, missing `concurrentNodes`, and references to unregistered nodes.
+The `WorkflowValidator` runs once per workflow instance (memoized on first `run()`/`runStream()`)
+and rejects: cycles, unreachable nodes, `concurrent` children that declare connections the engine
+would never follow, references to unregistered nodes, and (when the workflow exposes a registry)
+sub-workflow references to an unregistered child workflow type. A router's *declared* `connections`
+are checked at validate time; its `route()` return is additionally checked at run time against
+that same list, since a router can only pick among registered options at runtime.
 
 ---
 
@@ -261,8 +281,8 @@ export class EchoWorkflow extends Workflow {
       start: this.echoNode.token,
       eventSchema: echoEventSchema,
       nodes: [
-        { node: this.echoNode, connections: [this.upperCaseNode.token] },
-        { node: this.upperCaseNode, connections: [] },   // [] = terminal
+        { kind: 'linear', node: this.echoNode, next: this.upperCaseNode.token },
+        { kind: 'linear', node: this.upperCaseNode },   // no `next` = terminal
       ],
     };
   }
@@ -297,27 +317,31 @@ getSchema(): WorkflowSchema {
   return {
     start: this.sentimentNode.token,
     nodes: [
-      { node: this.sentimentNode, connections: [this.sentimentRouter.token] },
+      { kind: 'linear', node: this.sentimentNode, next: this.sentimentRouter.token },
       {
+        kind: 'router',
         node: this.sentimentRouter,
-        isRouter: true,
         connections: ['EscalateNode', 'AutoReplyNode'],  // declared branches
       },
-      { node: this.escalateNode, connections: [] },
-      { node: this.autoReplyNode, connections: [] },
+      { kind: 'linear', node: this.escalateNode },
+      { kind: 'linear', node: this.autoReplyNode },
     ],
   };
 }
 ```
 
-The engine runs the router's `process()` (a no-op by default), then follows `route()`'s return.
-Every branch listed in `connections` must be a registered node, and the graph must stay acyclic.
+The engine runs the router's `process()` (a no-op by default), then follows `route()`'s return —
+checked at run time against the config's own declared `connections`, so a router can never jump
+to an undeclared node even if `route()` returns a bad token. Every branch listed in `connections`
+must be a registered node, and the graph must stay acyclic.
 
 ### 4.4 Concurrent fan-out
 
 To run several agents in parallel (e.g. summarize, extract keywords, and detect language at once),
-set `concurrentNodes` on a coordinator node. The engine `Promise.all`s them, then continues to the
-coordinator's single `connections[0]`:
+give a coordinator node a `kind: 'concurrent'` config with `children`. The engine runs the
+coordinator's own `process()`/`cleanup()` around the fan-out, `Promise.allSettled`s the children
+(rejecting if any child failed, so a partial fan-out never leaves siblings running detached), then
+continues to `next`:
 
 ```ts
 getSchema(): WorkflowSchema {
@@ -325,21 +349,24 @@ getSchema(): WorkflowSchema {
     start: this.fanOut.token,
     nodes: [
       {
-        node: this.fanOut,                                   // a ConcurrentNode coordinator
-        concurrentNodes: ['SummaryNode', 'KeywordsNode', 'LanguageNode'],
-        connections: [this.mergeNode.token],                 // runs after all three finish
+        kind: 'concurrent',
+        node: this.fanOut,                                   // any Node; its process()/cleanup()
+        children: ['SummaryNode', 'KeywordsNode', 'LanguageNode'],
+        next: this.mergeNode.token,                           // runs after all three finish
       },
-      { node: this.summaryNode,  connections: [] },
-      { node: this.keywordsNode, connections: [] },
-      { node: this.languageNode, connections: [] },
-      { node: this.mergeNode,    connections: [] },          // reads all three outputs
+      { kind: 'linear', node: this.summaryNode },
+      { kind: 'linear', node: this.keywordsNode },
+      { kind: 'linear', node: this.languageNode },
+      { kind: 'linear', node: this.mergeNode },                // reads all three outputs
     ],
   };
 }
 ```
 
 `MergeNode` reads each parallel result via `ctx.getOutput('SummaryNode')`, etc. Because nodes are
-async-native, this is true non-blocking concurrency.
+async-native, this is true non-blocking concurrency. A concurrent child must not declare its own
+`next` — the engine never follows a fan-out child's own edges, so the validator rejects one that
+tries (it would silently never fire).
 
 ### 4.5 Workflow composition (sub-workflows)
 
@@ -408,19 +435,39 @@ pipes these straight to SSE (see [§7](#7-openai-compatible-chat-endpoint)).
 
 ### 4.7 Registering & running a workflow
 
-A workflow is reachable by clients once it's in the `WorkflowRegistry` under a string type. Register
-it in `workflows/workflows.module.ts`:
+A workflow is reachable by clients once it's in the `WorkflowRegistry` under a string type. Every
+workflow — including composed ones like `CompositeWorkflow`, whose `SubWorkflowNode` itself
+injects `WorkflowRegistry` — is DI-managed; `workflows/workflows.module.ts` only wires the
+already-constructed instances into the registry once Nest has finished building them, from an
+`onModuleInit` hook (registering earlier would race the sub-workflow node's own dependency on the
+registry):
 
 ```ts
-const registry = new WorkflowRegistry();
-registry.register(EchoWorkflow.TYPE, echoWorkflow);            // 'echo'
-registry.register(StreamingWorkflow.TYPE, streamingWorkflow);  // 'streaming-chat'
-registry.register(CompositeWorkflow.TYPE, composite);          // 'composite'
+@Module({
+  imports: [CoreModule, EchoModule, StreamingModule],
+  providers: [EchoSubWorkflowNode, SummarizeNode, CompositeWorkflow],
+  exports: [CoreModule],   // re-exports CoreModule's WorkflowRegistry to importers
+})
+export class WorkflowsModule implements OnModuleInit {
+  constructor(
+    private readonly registry: WorkflowRegistry,
+    private readonly echoWorkflow: EchoWorkflow,
+    private readonly streamingWorkflow: StreamingWorkflow,
+    private readonly compositeWorkflow: CompositeWorkflow,
+  ) {}
+
+  onModuleInit(): void {
+    this.registry.register(EchoWorkflow.TYPE, this.echoWorkflow);
+    this.registry.register(StreamingWorkflow.TYPE, this.streamingWorkflow);
+    this.registry.register(CompositeWorkflow.TYPE, this.compositeWorkflow);
+  }
+}
 ```
 
-> Composing workflows share a single registry *instance*, so build the composite node graph
-> manually (as the module does) rather than via DI — otherwise you create a construction cycle
-> (registry ← workflow ← sub-node ← registry).
+> Nest only lets a module `export` a token it either declares in its own `providers` or that is
+> itself one of its `imports` — you can't cherry-pick a single provider that merely came in
+> through an imported module. `WorkflowsModule` gets `WorkflowRegistry` via `CoreModule` (imported,
+> not locally provided), so it re-exports `CoreModule` itself rather than `WorkflowRegistry`.
 
 Now clients submit work by `workflowType`. Submit an event (returns `202` immediately):
 

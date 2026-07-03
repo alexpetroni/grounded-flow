@@ -9,6 +9,7 @@ import { TracingService } from '@app/observability';
 import type { Env } from '@app/config';
 import { AiSdkEmbedder } from './embedder/ai-sdk.embedder';
 import { FakeEmbedder } from './embedder/fake.embedder';
+import { UnconfiguredEmbedder } from './embedder/unconfigured.embedder';
 import { QdrantVectorStore } from './vector-store/qdrant.vector-store';
 import {
   IngestionService,
@@ -23,12 +24,9 @@ import type { Reranker } from './rerank/reranker.interface';
 import { PassthroughReranker } from './rerank/passthrough.reranker';
 import { CohereReranker } from './rerank/cohere.reranker';
 import { RagAnswerNode } from './generation/rag-answer.node';
-import { RagQueryService, type RagQueryDefaults } from './query/rag-query.service';
-import {
-  RETRIEVER_TOKEN,
-  RERANKER_TOKEN,
-  RAG_QUERY_DEFAULTS_TOKEN,
-} from './query/rag-query.tokens';
+import { RagQueryService } from './query/rag-query.service';
+import { RETRIEVER_TOKEN, RERANKER_TOKEN } from './query/rag-query.tokens';
+import { RAG_CONFIG_TOKEN, ragConfigFactory, type RagConfig } from './rag.config';
 
 export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
 
@@ -63,16 +61,9 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
           }) as EmbeddingModel;
           return new AiSdkEmbedder(model, 1536);
         } catch {
-          // Graceful degradation: if provider key is missing, return a no-op embedder
-          // that will cause ingestion to fail with a clear message rather than crashing boot
-          return {
-            dimensions: 1536,
-            embed: async () => {
-              throw new Error(
-                `Embedding provider "${provider}" is not configured (missing API key)`,
-              );
-            },
-          };
+          // Graceful degradation: missing provider key → boot succeeds, but
+          // any embed() call fails loudly instead of crashing boot.
+          return new UnconfiguredEmbedder(1536, provider);
         }
       },
       inject: [ConfigService],
@@ -86,34 +77,32 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
       inject: [QDRANT_CLIENT_TOKEN, ConfigService],
     },
     {
+      provide: RAG_CONFIG_TOKEN,
+      useFactory: ragConfigFactory,
+      inject: [ConfigService],
+    },
+    {
       provide: IngestionService,
       useFactory: (
         docsRepo: DocumentsRepository,
         unitOfWork: UnitOfWork,
         embedder: AiSdkEmbedder,
         vectorStore: QdrantVectorStore,
-        config: ConfigService<Env, true>,
-      ) => {
-        const chunkTokens = config.get('RAG_CHUNK_TOKENS', { infer: true });
-        const overlapTokens = config.get('RAG_CHUNK_OVERLAP', { infer: true });
-        return new IngestionService(
-          docsRepo,
-          unitOfWork,
-          embedder,
-          vectorStore,
-          chunkTokens,
-          overlapTokens,
-        );
-      },
-      inject: [DocumentsRepository, UnitOfWork, EMBEDDER_TOKEN, VECTOR_STORE_TOKEN, ConfigService],
+        ragConfig: RagConfig,
+      ) => new IngestionService(docsRepo, unitOfWork, embedder, vectorStore, ragConfig),
+      inject: [
+        DocumentsRepository,
+        UnitOfWork,
+        EMBEDDER_TOKEN,
+        VECTOR_STORE_TOKEN,
+        RAG_CONFIG_TOKEN,
+      ],
     },
     {
       provide: RETRIEVER_TOKEN,
-      useFactory: (vectorStore: VectorStore, config: ConfigService<Env, true>): Retriever => {
-        const topK = config.get('RAG_TOP_K', { infer: true });
-        return new HybridRetriever(vectorStore, topK);
-      },
-      inject: [VECTOR_STORE_TOKEN, ConfigService],
+      useFactory: (vectorStore: VectorStore, ragConfig: RagConfig): Retriever =>
+        new HybridRetriever(vectorStore, ragConfig.topK),
+      inject: [VECTOR_STORE_TOKEN, RAG_CONFIG_TOKEN],
     },
     {
       provide: RERANKER_TOKEN,
@@ -132,14 +121,6 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
       inject: [ConfigService],
     },
     {
-      provide: RAG_QUERY_DEFAULTS_TOKEN,
-      useFactory: (config: ConfigService<Env, true>): RagQueryDefaults => ({
-        topK: config.get('RAG_TOP_K', { infer: true }),
-        topN: config.get('RAG_RERANK_TOP_N', { infer: true }),
-      }),
-      inject: [ConfigService],
-    },
-    {
       provide: RagAnswerNode,
       useFactory: (llmService: LlmService, tracing?: TracingService) =>
         new RagAnswerNode(llmService, tracing),
@@ -152,15 +133,9 @@ export const QDRANT_CLIENT_TOKEN = Symbol('QDRANT_CLIENT');
         retriever: Retriever,
         reranker: Reranker,
         answerNode: RagAnswerNode,
-        defaults: RagQueryDefaults,
-      ) => new RagQueryService(embedder, retriever, reranker, answerNode, defaults),
-      inject: [
-        EMBEDDER_TOKEN,
-        RETRIEVER_TOKEN,
-        RERANKER_TOKEN,
-        RagAnswerNode,
-        RAG_QUERY_DEFAULTS_TOKEN,
-      ],
+        ragConfig: RagConfig,
+      ) => new RagQueryService(embedder, retriever, reranker, answerNode, ragConfig),
+      inject: [EMBEDDER_TOKEN, RETRIEVER_TOKEN, RERANKER_TOKEN, RagAnswerNode, RAG_CONFIG_TOKEN],
     },
   ],
   exports: [

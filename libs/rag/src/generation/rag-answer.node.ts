@@ -1,17 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import type { ModelMessage } from 'ai';
-import { AgentNode, LlmService } from '@app/llm';
+import { LlmService, generateStructured } from '@app/llm';
 import type { TracingService } from '@app/observability';
-import type { TaskContext } from '@app/core';
 import type { RerankedChunk } from '../rerank/reranker.interface';
 import { ragAnswerSchema, type RagAnswer } from './rag-answer.schema';
 
-export const RAG_INPUT_KEY = 'ragInput';
-
-export interface RagGenerationInput {
+interface RagGenerationInput {
   question: string;
   chunks: RerankedChunk[];
 }
+
+const FUNCTION_ID = 'RagAnswerNode';
 
 const SYSTEM_PROMPT = [
   'You are a precise question-answering assistant for a retrieval system.',
@@ -22,25 +21,26 @@ const SYSTEM_PROMPT = [
 ].join(' ');
 
 /**
- * Generation node: turns reranked context chunks into a grounded, cited answer.
- * Reuses {@link AgentNode}'s structured-output machinery with the RAG schema.
- * The retrieved chunks are passed via `ctx.metadata[RAG_INPUT_KEY]`.
+ * Generation step: turns reranked context chunks into a grounded, cited
+ * answer. A plain typed call — no workflow/TaskContext machinery involved.
  */
 @Injectable()
-export class RagAnswerNode extends AgentNode<RagAnswer> {
-  readonly token = 'RagAnswerNode';
-  readonly outputSchema = ragAnswerSchema;
+export class RagAnswerNode {
+  constructor(
+    private readonly llmService: LlmService,
+    private readonly tracing?: TracingService,
+  ) {}
 
-  constructor(llmService: LlmService, tracing?: TracingService) {
-    super(llmService, tracing);
+  async answer(input: RagGenerationInput): Promise<RagAnswer> {
+    return generateStructured({
+      llmService: this.llmService,
+      schema: ragAnswerSchema,
+      messages: this.buildMessages(input),
+      telemetry: this.tracing?.aiTelemetry(FUNCTION_ID) ?? { isEnabled: false },
+    });
   }
 
-  buildMessages(ctx: TaskContext): ModelMessage[] {
-    const input = ctx.metadata[RAG_INPUT_KEY] as RagGenerationInput | undefined;
-    if (!input) {
-      throw new Error(`RagAnswerNode requires ctx.metadata['${RAG_INPUT_KEY}']`);
-    }
-
+  private buildMessages(input: RagGenerationInput): ModelMessage[] {
     const context = input.chunks
       .map((c, i) => `[#${i + 1}] chunkId=${c.chunkId}\n${c.text}`)
       .join('\n\n');

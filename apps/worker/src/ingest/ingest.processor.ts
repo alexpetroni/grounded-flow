@@ -2,10 +2,9 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { IngestionService } from '@app/rag';
+import { INGEST_QUEUE } from '@app/core';
 import { DeadLetterService } from '../dead-letter.service';
 import { workerConcurrency } from '../worker.config';
-
-export const INGEST_QUEUE = 'ingest';
 
 interface IngestJobData {
   documentId: string;

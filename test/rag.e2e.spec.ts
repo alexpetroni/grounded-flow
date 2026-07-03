@@ -6,33 +6,21 @@ import request from 'supertest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import { QdrantClient } from '@qdrant/js-client-rest';
-import { uuidv7 } from 'uuidv7';
-import { readFileSync } from 'fs';
-import path from 'path';
 import {
   QdrantVectorStore,
   FakeEmbedder,
-  Chunker,
-  getLoader,
   HybridRetriever,
   PassthroughReranker,
   RagAnswerNode,
   RagQueryService,
 } from '@app/rag';
-import type { ChunkPoint } from '@app/rag';
 import { LlmService, createFakeLanguageModel } from '@app/llm';
 import { RagController } from '../apps/api/src/rag/rag.controller';
 import { detectRagNetwork, attachOrExpose, endpointOf } from './helpers/rag-network';
+import { ingestCorpus } from './helpers/corpus';
 
 const COLLECTION = 'rag_query_e2e';
 const DIMS = 4;
-const CORPUS_DIR = path.resolve(__dirname, 'fixtures/corpus');
-
-const CORPUS: Array<{ file: string; mime: string }> = [
-  { file: 'introduction.md', mime: 'text/markdown' },
-  { file: 'rag-overview.txt', mime: 'text/plain' },
-  { file: 'vectors.html', mime: 'text/html' },
-];
 
 // The fake LLM cites a chunkId that is NOT in the corpus, forcing the grounding
 // validator to reject + repair it — proving the regression end-to-end.
@@ -62,29 +50,6 @@ async function startQdrant(): Promise<{ host: string; port: number }> {
 
   container = await builder.start();
   return endpointOf(container, net, 6333);
-}
-
-async function ingestCorpus(store: QdrantVectorStore, embedder: FakeEmbedder): Promise<void> {
-  const chunker = new Chunker({ chunkTokens: 60, overlapTokens: 10 });
-  for (const { file, mime } of CORPUS) {
-    const buf = readFileSync(path.join(CORPUS_DIR, file));
-    const loaded = await getLoader(mime).load(buf, file, {});
-    const raw = chunker.chunk(loaded.text);
-    const embeds = await embedder.embed(raw.map((c) => c.text));
-    const points: ChunkPoint[] = raw.map((c, i) => {
-      const id = uuidv7();
-      return {
-        id,
-        chunkId: id,
-        documentId: file,
-        ordinal: c.ordinal,
-        text: c.text,
-        metadata: { source: file },
-        embedding: embeds[i]!,
-      };
-    });
-    await store.upsert(points);
-  }
 }
 
 beforeAll(async () => {

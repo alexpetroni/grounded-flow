@@ -1,14 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { events, type Event, type EventStatus } from '../schema/events';
-import type * as schema from '../schema/index';
-
-export type Db = NodePgDatabase<typeof schema>;
+import { DATABASE_TOKEN, type Db } from '../db.types';
 
 @Injectable()
 export class EventsRepository {
-  constructor(private readonly db: Db) {}
+  constructor(@Inject(DATABASE_TOKEN) private readonly db: Db) {}
 
   async create(data: { workflowType: string; data: unknown; traceId?: string }): Promise<Event> {
     const [event] = await this.db

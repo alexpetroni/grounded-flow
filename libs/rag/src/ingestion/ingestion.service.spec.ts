@@ -38,7 +38,6 @@ function makeVectorStore(): VectorStore {
     ensureCollection: vi.fn().mockResolvedValue(undefined),
     upsert: vi.fn().mockResolvedValue(undefined),
     deleteByDocumentId: vi.fn().mockResolvedValue(undefined),
-    search: vi.fn().mockResolvedValue([]),
     searchDense: vi.fn().mockResolvedValue([]),
     searchSparse: vi.fn().mockResolvedValue([]),
   };
@@ -61,8 +60,7 @@ describe('IngestionService', () => {
       makeUnitOfWork(chunksRepo, docsRepo),
       embedder,
       vectorStore,
-      50, // chunkTokens
-      10, // overlapTokens
+      { chunkTokens: 50, overlapTokens: 10 },
     );
   });
 
@@ -165,8 +163,7 @@ describe('IngestionService', () => {
       makeUnitOfWork(chunksRepo, docsRepo),
       failingEmbedder as unknown as FakeEmbedder,
       vectorStore,
-      50,
-      10,
+      { chunkTokens: 50, overlapTokens: 10 },
     );
 
     await expect(

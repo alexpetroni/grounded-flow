@@ -9,6 +9,24 @@ export class WorkflowValidationError extends Error {
   }
 }
 
+/** The tokens a config's own edge(s) point at — excludes a concurrent config's `children`. */
+function edgeTargets(config: NodeConfig): string[] {
+  switch (config.kind) {
+    case 'router':
+      return config.connections;
+    case 'linear':
+    case 'concurrent':
+      return config.next ? [config.next] : [];
+  }
+}
+
+/** Every token the engine will visit next from this config, including fan-out children. */
+function allNeighbors(config: NodeConfig): string[] {
+  return config.kind === 'concurrent'
+    ? [...edgeTargets(config), ...config.children]
+    : edgeTargets(config);
+}
+
 export class WorkflowValidator {
   /**
    * Validate a workflow schema. When a `registry` is supplied, sub-workflow
@@ -19,8 +37,7 @@ export class WorkflowValidator {
     const nodeMap = this.buildNodeMap(schema);
     this.validateStartExists(schema, nodeMap);
     this.validateConnectionsExist(schema, nodeMap);
-    this.validateConcurrentNodesExist(schema, nodeMap);
-    this.validateRouterConnectionRule(schema);
+    this.validateConcurrentChildren(schema, nodeMap);
     this.validateNoCycles(schema, nodeMap);
     this.validateReachability(schema, nodeMap);
     if (registry) this.validateSubWorkflowsRegistered(schema, registry);
@@ -59,47 +76,38 @@ export class WorkflowValidator {
 
   private validateConnectionsExist(schema: WorkflowSchema, nodeMap: Map<string, NodeConfig>): void {
     for (const config of schema.nodes) {
-      for (const conn of config.connections) {
-        if (!nodeMap.has(conn)) {
+      for (const target of edgeTargets(config)) {
+        if (!nodeMap.has(target)) {
           throw new WorkflowValidationError(
-            `Node "${config.node.token}" has connection to unknown node "${conn}"`,
+            `Node "${config.node.token}" has connection to unknown node "${target}"`,
           );
         }
       }
     }
   }
 
-  private validateConcurrentNodesExist(
+  private validateConcurrentChildren(
     schema: WorkflowSchema,
     nodeMap: Map<string, NodeConfig>,
   ): void {
-    // Nodes reachable only as concurrent children never have their connections
-    // followed by the engine — a connection there would validate but silently
+    // Nodes reachable only as concurrent children never have their own edges
+    // followed by the engine — an edge there would validate but silently
     // never fire, so reject it up front.
-    const connectionTargets = new Set(schema.nodes.flatMap((c) => c.connections));
+    const connectionTargets = new Set(schema.nodes.flatMap((c) => edgeTargets(c)));
     for (const config of schema.nodes) {
-      for (const concurrent of config.concurrentNodes ?? []) {
-        if (!nodeMap.has(concurrent)) {
+      if (config.kind !== 'concurrent') continue;
+      for (const childToken of config.children) {
+        const child = nodeMap.get(childToken);
+        if (!child) {
           throw new WorkflowValidationError(
-            `Node "${config.node.token}" references unknown concurrentNode "${concurrent}"`,
+            `Node "${config.node.token}" references unknown concurrentNode "${childToken}"`,
           );
         }
-        const child = nodeMap.get(concurrent)!;
-        if (child.connections.length > 0 && !connectionTargets.has(concurrent)) {
+        if (edgeTargets(child).length > 0 && !connectionTargets.has(childToken)) {
           throw new WorkflowValidationError(
-            `Concurrent node "${concurrent}" declares connections, but the engine never follows a concurrent child's connections — they would silently not run`,
+            `Concurrent node "${childToken}" declares connections, but the engine never follows a concurrent child's connections — they would silently not run`,
           );
         }
-      }
-    }
-  }
-
-  private validateRouterConnectionRule(schema: WorkflowSchema): void {
-    for (const config of schema.nodes) {
-      if (!config.isRouter && config.connections.length > 1) {
-        throw new WorkflowValidationError(
-          `Non-router node "${config.node.token}" has ${config.connections.length} connections; only routers may have more than one`,
-        );
       }
     }
   }
@@ -114,8 +122,7 @@ export class WorkflowValidator {
     const dfs = (token: string): void => {
       color.set(token, GRAY);
       const config = nodeMap.get(token)!;
-      const neighbors = [...config.connections, ...(config.concurrentNodes ?? [])];
-      for (const neighbor of neighbors) {
+      for (const neighbor of allNeighbors(config)) {
         const c = color.get(neighbor);
         if (c === GRAY) {
           throw new WorkflowValidationError(
@@ -141,7 +148,7 @@ export class WorkflowValidator {
       if (visited.has(token)) continue;
       visited.add(token);
       const config = nodeMap.get(token)!;
-      queue.push(...config.connections, ...(config.concurrentNodes ?? []));
+      queue.push(...allNeighbors(config));
     }
 
     for (const token of nodeMap.keys()) {

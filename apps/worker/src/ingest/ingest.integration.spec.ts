@@ -11,10 +11,10 @@ import * as schema from '@app/database';
 import type { Db } from '@app/database';
 import { DocumentsRepository, ChunksRepository, UnitOfWork } from '@app/database';
 import { QdrantVectorStore, FakeEmbedder, IngestionService } from '@app/rag';
+import { INGEST_QUEUE } from '@app/core';
 import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../../../docker/migrations');
-const INGEST_QUEUE = 'ingest';
 const COLLECTION = 'rag_chunks_ingest_test';
 
 interface IngestJobData {
@@ -135,8 +135,7 @@ describe('Ingest pipeline integration (Postgres + Redis + Qdrant)', () => {
       new UnitOfWork(db),
       embedder,
       vectorStore,
-      50,
-      10,
+      { chunkTokens: 50, overlapTokens: 10 },
     );
 
     bullWorker = new Worker<IngestJobData>(

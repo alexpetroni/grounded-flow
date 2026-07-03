@@ -1,10 +1,12 @@
 export { RagModule, QDRANT_CLIENT_TOKEN } from './rag.module';
+export { RAG_CONFIG_TOKEN, ragConfigFactory } from './rag.config';
+export type { RagConfig } from './rag.config';
 export {
   IngestionService,
   EMBEDDER_TOKEN,
   VECTOR_STORE_TOKEN,
 } from './ingestion/ingestion.service';
-export type { IngestInput } from './ingestion/ingestion.service';
+export type { IngestInput, IngestionOptions } from './ingestion/ingestion.service';
 export type {
   Embedder,
   EmbedResult,
@@ -13,6 +15,7 @@ export type {
 } from './embedder/embedder.interface';
 export { AiSdkEmbedder } from './embedder/ai-sdk.embedder';
 export { FakeEmbedder } from './embedder/fake.embedder';
+export { UnconfiguredEmbedder } from './embedder/unconfigured.embedder';
 export { Chunker } from './chunker/chunker';
 export type { ChunkResult, ChunkerOptions } from './chunker/chunker';
 export type { VectorStore, ChunkPoint, SearchResult } from './vector-store/vector-store.interface';
@@ -39,8 +42,7 @@ export { CohereReranker } from './rerank/cohere.reranker';
 export type { CohereRerankerOptions, FetchFn } from './rerank/cohere.reranker';
 
 // Generation + grounding
-export { RagAnswerNode, RAG_INPUT_KEY } from './generation/rag-answer.node';
-export type { RagGenerationInput } from './generation/rag-answer.node';
+export { RagAnswerNode } from './generation/rag-answer.node';
 export { ragAnswerSchema, citationSchema } from './generation/rag-answer.schema';
 export type { RagAnswer, Citation } from './generation/rag-answer.schema';
 export { validateGrounding } from './generation/grounding';
@@ -54,11 +56,7 @@ export type {
   RetrievedRef,
   RagQueryDefaults,
 } from './query/rag-query.service';
-export {
-  RETRIEVER_TOKEN,
-  RERANKER_TOKEN,
-  RAG_QUERY_DEFAULTS_TOKEN,
-} from './query/rag-query.tokens';
+export { RETRIEVER_TOKEN, RERANKER_TOKEN } from './query/rag-query.tokens';
 
 // Eval metrics + ratchet
 export {

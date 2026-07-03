@@ -60,7 +60,7 @@ function makeChildWorkflow(): Workflow {
       return {
         start: 'Child',
         eventSchema: z.object({ n: z.number() }),
-        nodes: [{ node: new ChildNode(), connections: [] }],
+        nodes: [{ kind: 'linear', node: new ChildNode() }],
       };
     }
   })();
@@ -89,8 +89,8 @@ function makeComposite(): {
     {
       start: 'RunChild',
       nodes: [
-        { node: runChild, connections: ['Consumer'] },
-        { node: new ConsumerNode(), connections: [] },
+        { kind: 'linear', node: runChild, next: 'Consumer' },
+        { kind: 'linear', node: new ConsumerNode() },
       ],
     },
     registry,
@@ -141,8 +141,8 @@ describe('SubWorkflowNode composition', () => {
       {
         start: 'RunChild',
         nodes: [
-          { node: runChild, connections: ['Child'] },
-          { node: new ParentChildShadow(), connections: [] },
+          { kind: 'linear', node: runChild, next: 'Child' },
+          { kind: 'linear', node: new ParentChildShadow() },
         ],
       },
       registry,
@@ -172,7 +172,7 @@ describe('SubWorkflowNode composition', () => {
     const registry = new WorkflowRegistry(); // child intentionally NOT registered
     const runChild = new RunChildNode(registry);
     const parent = makeParentWorkflow(
-      { start: 'RunChild', nodes: [{ node: runChild, connections: [] }] },
+      { start: 'RunChild', nodes: [{ kind: 'linear', node: runChild }] },
       registry,
     );
     await expect(parent.run({ input: 1 })).rejects.toThrow(WorkflowValidationError);
@@ -183,7 +183,7 @@ describe('validator sub-workflow registration check', () => {
   const validator = new WorkflowValidator();
 
   function schemaWith(registry: WorkflowRegistry): WorkflowSchema {
-    return { start: 'RunChild', nodes: [{ node: new RunChildNode(registry), connections: [] }] };
+    return { start: 'RunChild', nodes: [{ kind: 'linear', node: new RunChildNode(registry) }] };
   }
 
   it('passes when the referenced child workflow is registered', () => {

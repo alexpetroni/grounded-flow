@@ -14,11 +14,6 @@ export interface VectorStore {
   ensureCollection(dimensions: number): Promise<void>;
   upsert(points: ChunkPoint[]): Promise<void>;
   deleteByDocumentId(documentId: string): Promise<void>;
-  search(
-    embedding: EmbedResult,
-    topK: number,
-    filter?: Record<string, unknown>,
-  ): Promise<SearchResult[]>;
   /** Dense-only ANN search, returned in descending score order. */
   searchDense(
     dense: number[],

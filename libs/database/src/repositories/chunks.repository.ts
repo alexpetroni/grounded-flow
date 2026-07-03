@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { asc, count, eq, sql } from 'drizzle-orm';
 import { chunks, type Chunk, type NewChunk } from '../schema/chunks';
-import type { Db } from './events.repository';
+import { DATABASE_TOKEN, type Db } from '../db.types';
 
 export type ChunkInsert = Pick<
   NewChunk,
@@ -10,7 +10,7 @@ export type ChunkInsert = Pick<
 
 @Injectable()
 export class ChunksRepository {
-  constructor(private readonly db: Db) {}
+  constructor(@Inject(DATABASE_TOKEN) private readonly db: Db) {}
 
   async upsertMany(rows: ChunkInsert[]): Promise<void> {
     if (rows.length === 0) return;

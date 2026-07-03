@@ -83,7 +83,7 @@ describe('RagQueryService', () => {
 
   it('short-circuits with no LLM call when nothing is retrieved', async () => {
     const node = makeAnswerNode('{}');
-    const processSpy = vi.spyOn(node, 'process');
+    const answerSpy = vi.spyOn(node, 'answer');
     const service = new RagQueryService(
       new FakeEmbedder(4),
       new StubRetriever([]),
@@ -97,7 +97,7 @@ describe('RagQueryService', () => {
     expect(result.grounded).toBe(false);
     expect(result.citations).toEqual([]);
     expect(result.retrieved).toEqual([]);
-    expect(processSpy).not.toHaveBeenCalled();
+    expect(answerSpy).not.toHaveBeenCalled();
   });
 
   it('forwards topK / filter / mode to the retriever', async () => {

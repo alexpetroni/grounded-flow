@@ -9,6 +9,7 @@ const aliases = {
   '@app/rag': resolve(__dirname, 'libs/rag/src/index.ts'),
   '@app/database': resolve(__dirname, 'libs/database/src/index.ts'),
   '@app/observability': resolve(__dirname, 'libs/observability/src/index.ts'),
+  '@app/workflows': resolve(__dirname, 'workflows/index.ts'),
 };
 
 const swcPlugin = swc.vite({
@@ -38,7 +39,7 @@ export default defineConfig({
         plugins: [swcPlugin],
         test: {
           name: 'unit',
-          include: ['libs/**/*.spec.ts', 'apps/**/*.spec.ts'],
+          include: ['libs/**/*.spec.ts', 'apps/**/*.spec.ts', 'workflows/**/*.spec.ts'],
           exclude: ['**/node_modules/**', '**/*.integration.spec.ts', '**/*.e2e.spec.ts'],
           environment: 'node',
         },
