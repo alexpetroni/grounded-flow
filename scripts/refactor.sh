@@ -28,8 +28,11 @@ if [[ -z "${REFACTOR_DRY_RUN:-}" ]]; then
 fi
 
 # The container clones HEAD: uncommitted work would silently not participate.
-git diff --quiet && git diff --cached --quiet \
-  || fail "working tree has uncommitted changes — commit or stash first (the agent clones HEAD)"
+# .claude/settings.local.json is exempt — the operator's live Claude session
+# dirties it on every command approval, and it plays no role in the clone.
+if [[ -n "$(git status --porcelain -- . ':(exclude).claude/settings.local.json')" ]]; then
+  fail "working tree has uncommitted changes — commit or stash first (the agent clones HEAD)"
+fi
 
 git show-ref --verify --quiet "refs/heads/$BRANCH" \
   && fail "branch $BRANCH already exists — merge or delete it before a new run"
