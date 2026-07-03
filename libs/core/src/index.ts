@@ -1,3 +1,4 @@
+export { EVENTS_QUEUE, INGEST_QUEUE } from './queues';
 export { TaskContext } from './task-context';
 export { Node } from './node.abstract';
 export { BaseRouter } from './router.abstract';

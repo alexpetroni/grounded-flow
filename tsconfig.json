@@ -30,7 +30,8 @@
       "@app/database": ["libs/database/src/index.ts"],
       "@app/database/*": ["libs/database/src/*"],
       "@app/observability": ["libs/observability/src/index.ts"],
-      "@app/observability/*": ["libs/observability/src/*"]
+      "@app/observability/*": ["libs/observability/src/*"],
+      "@app/workflows": ["workflows/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]

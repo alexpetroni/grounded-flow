@@ -2,11 +2,10 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { EventsRepository } from '@app/database';
-import { WorkflowRegistry } from '@app/core';
+import { WorkflowRegistry, EVENTS_QUEUE } from '@app/core';
 import { TracingService } from '@app/observability';
 import { DeadLetterService } from '../dead-letter.service';
 import { workerConcurrency } from '../worker.config';
-import { EVENTS_QUEUE } from './events.constants';
 
 interface EventJobData {
   eventId: string;

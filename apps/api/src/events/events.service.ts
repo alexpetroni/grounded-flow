@@ -4,10 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { ZodError } from 'zod';
 import { EventsRepository } from '@app/database';
+import { EVENTS_QUEUE } from '@app/core';
 import type { Env } from '@app/config';
 import { createEventSchema, type CreateEventDto, type EventResponseDto } from './events.dto';
-
-export const EVENTS_QUEUE = 'events';
 
 @Injectable()
 export class EventsService {

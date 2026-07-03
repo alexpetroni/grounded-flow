@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { events, type Event, type EventStatus } from '../schema/events';
-import type * as schema from '../schema/index';
-
-export type Db = NodePgDatabase<typeof schema>;
+import type { Db } from '../db.types';
 
 @Injectable()
 export class EventsRepository {

@@ -4,12 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import type { Queue } from 'bullmq';
 import { DocumentsRepository } from '@app/database';
 import type { Document } from '@app/database';
+import { INGEST_QUEUE } from '@app/core';
 import type { Env } from '@app/config';
 import { SUPPORTED_MIME_TYPES } from '@app/rag';
 import type { CreateDocumentDto } from './documents.dto';
 import { CreateDocumentDto as CreateDocumentSchema } from './documents.dto';
-
-export const INGEST_QUEUE = 'ingest';
 
 export interface IngestJobData {
   documentId: string;

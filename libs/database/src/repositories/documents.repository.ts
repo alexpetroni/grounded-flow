@@ -6,7 +6,7 @@ import {
   type DocumentStatus,
   type NewDocument,
 } from '../schema/documents';
-import type { Db } from './events.repository';
+import type { Db } from '../db.types';
 
 @Injectable()
 export class DocumentsRepository {

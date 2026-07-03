@@ -9,6 +9,7 @@ const aliases = {
   '@app/rag': resolve(__dirname, 'libs/rag/src/index.ts'),
   '@app/database': resolve(__dirname, 'libs/database/src/index.ts'),
   '@app/observability': resolve(__dirname, 'libs/observability/src/index.ts'),
+  '@app/workflows': resolve(__dirname, 'workflows/index.ts'),
 };
 
 const swcPlugin = swc.vite({

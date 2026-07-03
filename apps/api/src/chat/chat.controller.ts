@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { StreamingWorkflow } from '../../../../workflows/streaming/streaming.workflow';
+import { StreamingWorkflow } from '@app/workflows';
 import type { OpenAIChunk } from '@app/llm';
 
 const chatCompletionsSchema = z.object({

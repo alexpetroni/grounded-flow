@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { asc, count, eq, sql } from 'drizzle-orm';
 import { chunks, type Chunk, type NewChunk } from '../schema/chunks';
-import type { Db } from './events.repository';
+import type { Db } from '../db.types';
 
 export type ChunkInsert = Pick<
   NewChunk,

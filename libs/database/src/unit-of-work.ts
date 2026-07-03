@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Db } from './repositories/events.repository';
+import type { Db } from './db.types';
 import { ChunksRepository } from './repositories/chunks.repository';
 import { DocumentsRepository } from './repositories/documents.repository';
 import { EventsRepository } from './repositories/events.repository';

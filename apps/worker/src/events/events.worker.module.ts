@@ -2,10 +2,10 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseModule } from '@app/database';
+import { EVENTS_QUEUE } from '@app/core';
 import { parseRedisUrl, type Env } from '@app/config';
-import { WorkflowsModule } from '../../../../workflows/workflows.module';
+import { WorkflowsModule } from '@app/workflows';
 import { EventsProcessor } from './events.processor';
-import { EVENTS_QUEUE } from './events.constants';
 
 @Module({
   imports: [

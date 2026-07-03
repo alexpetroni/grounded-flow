@@ -8,13 +8,14 @@ import path from 'path';
 import { EventsRepository } from '@app/database';
 import * as schema from '@app/database';
 import { WorkflowRegistry } from '@app/core';
-import { EchoWorkflow } from '../../../../workflows/echo/echo.workflow';
-import { EchoNode, UpperCaseNode } from '../../../../workflows/echo/echo.nodes';
-import { CompositeWorkflow } from '../../../../workflows/composite/composite.workflow';
 import {
+  EchoWorkflow,
+  EchoNode,
+  UpperCaseNode,
+  CompositeWorkflow,
   EchoSubWorkflowNode,
   SummarizeNode,
-} from '../../../../workflows/composite/composite.nodes';
+} from '@app/workflows';
 import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../../test/helpers/rag-network';
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, '../../../../docker/migrations');
