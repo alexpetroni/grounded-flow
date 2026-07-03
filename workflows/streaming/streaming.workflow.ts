@@ -15,7 +15,7 @@ export class StreamingWorkflow extends Workflow {
     return {
       start: this.streamingChatNode.token,
       eventSchema: streamingEventSchema,
-      nodes: [{ node: this.streamingChatNode, connections: [] }],
+      nodes: [{ kind: 'linear', node: this.streamingChatNode }],
     };
   }
 }

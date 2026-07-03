@@ -18,14 +18,8 @@ export class EchoWorkflow extends Workflow {
       start: this.echoNode.token,
       eventSchema: echoEventSchema,
       nodes: [
-        {
-          node: this.echoNode,
-          connections: [this.upperCaseNode.token],
-        },
-        {
-          node: this.upperCaseNode,
-          connections: [],
-        },
+        { kind: 'linear', node: this.echoNode, next: this.upperCaseNode.token },
+        { kind: 'linear', node: this.upperCaseNode },
       ],
     };
   }

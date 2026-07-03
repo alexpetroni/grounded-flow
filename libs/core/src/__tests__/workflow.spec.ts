@@ -121,8 +121,8 @@ describe('Workflow engine', () => {
       const ctx = await makeWorkflow({
         start: 'A',
         nodes: [
-          { node: nodeA, connections: ['B'] },
-          { node: nodeB, connections: [] },
+          { kind: 'linear', node: nodeA, next: 'B' },
+          { kind: 'linear', node: nodeB },
         ],
       }).run({ test: true });
 
@@ -136,7 +136,7 @@ describe('Workflow engine', () => {
         makeWorkflow({
           start: 'A',
           eventSchema: z.object({ name: z.string() }),
-          nodes: [{ node, connections: [] }],
+          nodes: [{ kind: 'linear', node }],
         }).run({ name: 42 }),
       ).rejects.toThrow();
     });
@@ -147,7 +147,7 @@ describe('Workflow engine', () => {
         makeWorkflow({
           start: 'A',
           eventSchema: z.object({ name: z.string() }),
-          nodes: [{ node, connections: [] }],
+          nodes: [{ kind: 'linear', node }],
         }).run({ name: 'ok' }),
       ).resolves.toBeDefined();
     });
@@ -162,9 +162,9 @@ describe('Workflow engine', () => {
       const ctx = await makeWorkflow({
         start: 'Router',
         nodes: [
-          { node: router, connections: ['BranchA', 'BranchB'], isRouter: true },
-          { node: branchA, connections: [] },
-          { node: branchB, connections: [] },
+          { kind: 'router', node: router, connections: ['BranchA', 'BranchB'] },
+          { kind: 'linear', node: branchA },
+          { kind: 'linear', node: branchB },
         ],
       }).run({});
 
@@ -185,10 +185,10 @@ describe('Workflow engine', () => {
       const ctx = await makeWorkflow({
         start: 'Coord',
         nodes: [
-          { node: coord, connections: ['Done'], concurrentNodes: ['SlowA', 'SlowB'] },
-          { node: slowA, connections: [] },
-          { node: slowB, connections: [] },
-          { node: done, connections: [] },
+          { kind: 'concurrent', node: coord, children: ['SlowA', 'SlowB'], next: 'Done' },
+          { kind: 'linear', node: slowA },
+          { kind: 'linear', node: slowB },
+          { kind: 'linear', node: done },
         ],
       }).run({});
       const elapsed = Date.now() - start;
@@ -209,8 +209,8 @@ describe('Workflow engine', () => {
       const ctx = await makeWorkflow({
         start: 'Coord',
         nodes: [
-          { node: coord, connections: [], concurrentNodes: ['Child'] },
-          { node: child, connections: [] },
+          { kind: 'concurrent', node: coord, children: ['Child'] },
+          { kind: 'linear', node: child },
         ],
       }).run({});
 
@@ -226,8 +226,8 @@ describe('Workflow engine', () => {
         makeWorkflow({
           start: 'Coord',
           nodes: [
-            { node: coord, connections: [], concurrentNodes: ['Bad'] },
-            { node: bad, connections: [] },
+            { kind: 'concurrent', node: coord, children: ['Bad'] },
+            { kind: 'linear', node: bad },
           ],
         }).run({}),
       ).rejects.toThrow('Bad intentionally threw');
@@ -247,9 +247,9 @@ describe('Workflow engine', () => {
         makeWorkflow({
           start: 'Coord',
           nodes: [
-            { node: coord, connections: [], concurrentNodes: ['Bad', 'Slow'] },
-            { node: bad, connections: [] },
-            { node: slow, connections: [] },
+            { kind: 'concurrent', node: coord, children: ['Bad', 'Slow'] },
+            { kind: 'linear', node: bad },
+            { kind: 'linear', node: slow },
           ],
         }).run({}),
       ).rejects.toThrow('Bad intentionally threw');
@@ -278,9 +278,9 @@ describe('Workflow engine', () => {
         makeWorkflow({
           start: 'R',
           nodes: [
-            { node: router, connections: ['A'], isRouter: true },
-            { node: a, connections: ['Elsewhere'] },
-            { node: elsewhere, connections: [] },
+            { kind: 'router', node: router, connections: ['A'] },
+            { kind: 'linear', node: a, next: 'Elsewhere' },
+            { kind: 'linear', node: elsewhere },
           ],
         }).run({}),
       ).rejects.toThrow(/not one of its declared connections/);
@@ -295,8 +295,8 @@ describe('Workflow engine', () => {
       const ctx = await makeWorkflow({
         start: 'Stop',
         nodes: [
-          { node: stopNode, connections: ['NeverRan'] },
-          { node: neverRan, connections: [] },
+          { kind: 'linear', node: stopNode, next: 'NeverRan' },
+          { kind: 'linear', node: neverRan },
         ],
       }).run({});
 
@@ -310,7 +310,7 @@ describe('Workflow engine', () => {
       const node = new TestNode('A');
       await makeWorkflow({
         start: 'A',
-        nodes: [{ node, connections: [] }],
+        nodes: [{ kind: 'linear', node }],
       }).run({});
       expect(node.cleanupSpy).toHaveBeenCalledOnce();
     });
@@ -320,7 +320,7 @@ describe('Workflow engine', () => {
       await expect(
         makeWorkflow({
           start: 'A',
-          nodes: [{ node, connections: [] }],
+          nodes: [{ kind: 'linear', node }],
         }).run({}),
       ).rejects.toThrow('A intentionally threw');
       expect(node.cleanupSpy).toHaveBeenCalledOnce();
@@ -330,7 +330,7 @@ describe('Workflow engine', () => {
       const node = new TestNode('A');
       const gen = makeWorkflow({
         start: 'A',
-        nodes: [{ node, connections: [] }],
+        nodes: [{ kind: 'linear', node }],
       }).runStream({});
 
       for await (const _ of gen) {
@@ -343,7 +343,7 @@ describe('Workflow engine', () => {
       const node = new ThrowingNode('A');
       const gen = makeWorkflow({
         start: 'A',
-        nodes: [{ node, connections: [] }],
+        nodes: [{ kind: 'linear', node }],
       }).runStream({});
 
       await expect(async () => {
@@ -362,9 +362,9 @@ describe('Workflow engine', () => {
       const runPromise = makeWorkflow({
         start: 'Coord',
         nodes: [
-          { node: coord, connections: [], concurrentNodes: ['Good', 'Bad'] },
-          { node: good, connections: [] },
-          { node: bad, connections: [] },
+          { kind: 'concurrent', node: coord, children: ['Good', 'Bad'] },
+          { kind: 'linear', node: good },
+          { kind: 'linear', node: bad },
         ],
       }).run({});
 

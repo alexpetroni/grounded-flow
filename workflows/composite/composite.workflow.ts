@@ -29,14 +29,8 @@ export class CompositeWorkflow extends Workflow {
       start: this.echoSubWorkflowNode.token,
       eventSchema: compositeEventSchema,
       nodes: [
-        {
-          node: this.echoSubWorkflowNode,
-          connections: [this.summarizeNode.token],
-        },
-        {
-          node: this.summarizeNode,
-          connections: [],
-        },
+        { kind: 'linear', node: this.echoSubWorkflowNode, next: this.summarizeNode.token },
+        { kind: 'linear', node: this.summarizeNode },
       ],
     };
   }

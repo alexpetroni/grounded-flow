@@ -25,7 +25,7 @@ function makeLlmService(responses: string[]): LlmService {
 function makeStreamingWorkflow(node: TestStreamingNode): Workflow {
   return new (class extends Workflow {
     getSchema(): WorkflowSchema {
-      return { start: node.token, nodes: [{ node, connections: [] }] };
+      return { start: node.token, nodes: [{ kind: 'linear', node }] };
     }
   })();
 }
