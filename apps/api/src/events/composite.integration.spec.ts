@@ -103,11 +103,7 @@ describe('Composite workflow integration (events path)', () => {
     const echoNode = new EchoNode();
     registry.register(EchoWorkflow.TYPE, new EchoWorkflow(echoNode, new UpperCaseNode(echoNode)));
     const echoSub = new EchoSubWorkflowNode(registry);
-    const composite = new CompositeWorkflow(
-      echoSub,
-      new SummarizeNode(echoSub),
-      registry,
-    );
+    const composite = new CompositeWorkflow(echoSub, new SummarizeNode(echoSub), registry);
     registry.register(CompositeWorkflow.TYPE, composite);
 
     const connection = { host: redisHost, port: redisPort };
