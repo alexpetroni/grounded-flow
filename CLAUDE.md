@@ -88,7 +88,7 @@ CI pipeline order: `install (pnpm cache)` → `lint` → `typecheck` → `test (
 apps/api  apps/worker
 libs/core  libs/llm  libs/rag  libs/database  libs/observability  libs/config
 workflows/        example + concrete workflows
-docker/           Dockerfiles + compose + healthchecks
+docker/           Dockerfile (one, parameterized via ARG APP) + compose + healthchecks
 test/             e2e + fixtures + eval
 scripts/          smoke.sh, migrate, seed
 ```

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Node } from './node.abstract';
 import type { TaskContext } from './task-context';
-import type { WorkflowRegistry } from './workflow-registry';
+import { WorkflowRegistry } from './workflow-registry';
 
 /** Marker implemented by nodes that delegate to a registered child workflow. */
 export interface SubWorkflowReference {

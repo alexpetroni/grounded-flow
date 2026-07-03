@@ -39,7 +39,7 @@ export default defineConfig({
         plugins: [swcPlugin],
         test: {
           name: 'unit',
-          include: ['libs/**/*.spec.ts', 'apps/**/*.spec.ts'],
+          include: ['libs/**/*.spec.ts', 'apps/**/*.spec.ts', 'workflows/**/*.spec.ts'],
           exclude: ['**/node_modules/**', '**/*.integration.spec.ts', '**/*.e2e.spec.ts'],
           environment: 'node',
         },

@@ -10,7 +10,11 @@ import { EchoSubWorkflowNode, SummarizeNode } from './composite/composite.nodes'
 @Module({
   imports: [CoreModule, EchoModule, StreamingModule],
   providers: [EchoSubWorkflowNode, SummarizeNode, CompositeWorkflow],
-  exports: [WorkflowRegistry],
+  // Nest only allows exporting a provider token that this module itself
+  // declares in `providers` — re-exporting a provider that merely came in
+  // via `imports` (WorkflowRegistry, owned by CoreModule) requires
+  // re-exporting the whole module instead.
+  exports: [CoreModule],
 })
 export class WorkflowsModule implements OnModuleInit {
   constructor(
