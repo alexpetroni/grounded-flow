@@ -1,5 +1,6 @@
 export { EVENTS_QUEUE, INGEST_QUEUE } from './queues';
-export { TaskContext } from './task-context';
+export { TaskContext, outputKey } from './task-context';
+export type { OutputKey } from './task-context';
 export { Node } from './node.abstract';
 export { BaseRouter } from './router.abstract';
 export { SubWorkflowNode, isSubWorkflowReference } from './sub-workflow-node';

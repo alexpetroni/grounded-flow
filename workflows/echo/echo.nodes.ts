@@ -6,8 +6,12 @@ export const echoEventSchema = z.object({
   message: z.string(),
 });
 
+export interface EchoOutput {
+  echo: string;
+}
+
 @Injectable()
-export class EchoNode extends Node {
+export class EchoNode extends Node<EchoOutput> {
   readonly token = 'EchoNode';
 
   async process(ctx: TaskContext): Promise<TaskContext> {
@@ -18,11 +22,17 @@ export class EchoNode extends Node {
 }
 
 @Injectable()
-export class UpperCaseNode extends Node {
+export class UpperCaseNode extends Node<{ result: string }> {
   readonly token = 'UpperCaseNode';
 
+  // The producing node is injected, so its output is read through its own
+  // typed key — the write and read shapes share one source of truth.
+  constructor(private readonly echoNode: EchoNode) {
+    super();
+  }
+
   async process(ctx: TaskContext): Promise<TaskContext> {
-    const echoOutput = ctx.getOutput<{ echo: string }>('EchoNode');
+    const echoOutput = this.echoNode.readOutput(ctx);
     if (!echoOutput) {
       throw new Error('UpperCaseNode requires EchoNode output, but it has not run');
     }

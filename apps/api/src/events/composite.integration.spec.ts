@@ -100,10 +100,12 @@ describe('Composite workflow integration (events path)', () => {
     // does): register echo, then construct the composite with that shared
     // registry and register it too.
     const registry = new WorkflowRegistry();
-    registry.register(EchoWorkflow.TYPE, new EchoWorkflow(new EchoNode(), new UpperCaseNode()));
+    const echoNode = new EchoNode();
+    registry.register(EchoWorkflow.TYPE, new EchoWorkflow(echoNode, new UpperCaseNode(echoNode)));
+    const echoSub = new EchoSubWorkflowNode(registry);
     const composite = new CompositeWorkflow(
-      new EchoSubWorkflowNode(registry),
-      new SummarizeNode(),
+      echoSub,
+      new SummarizeNode(echoSub),
       registry,
     );
     registry.register(CompositeWorkflow.TYPE, composite);

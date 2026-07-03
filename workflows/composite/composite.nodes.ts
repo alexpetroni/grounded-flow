@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { Node, SubWorkflowNode, TaskContext } from '@app/core';
-import type { SubWorkflowResult } from '@app/core';
 
 export const compositeEventSchema = z.object({
   text: z.string(),
@@ -23,14 +22,23 @@ export class EchoSubWorkflowNode extends SubWorkflowNode {
   }
 }
 
+export interface CompositeSummary {
+  summary: string;
+  childWorkflow: string | undefined;
+}
+
 /** Reads the composed child's result and produces a final summary. */
 @Injectable()
-export class SummarizeNode extends Node {
+export class SummarizeNode extends Node<CompositeSummary> {
   readonly token = 'SummarizeNode';
 
+  constructor(private readonly echoSubWorkflow: EchoSubWorkflowNode) {
+    super();
+  }
+
   async process(ctx: TaskContext): Promise<TaskContext> {
-    const child = ctx.getOutput<SubWorkflowResult>('EchoSubWorkflow');
-    const upper = child?.nodes['UpperCaseNode'] as { result: string } | undefined;
+    const child = this.echoSubWorkflow.readOutput(ctx);
+    const upper = this.echoSubWorkflow.getChildOutput<{ result: string }>(ctx, 'UpperCaseNode');
     this.saveOutput(ctx, {
       summary: `echo workflow returned: ${upper?.result ?? '(none)'}`,
       childWorkflow: child?.workflowType,

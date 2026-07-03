@@ -27,7 +27,7 @@ function getModelId(model: LanguageModel): string {
 }
 
 @Injectable()
-export abstract class AgentStreamingNode extends Node implements StreamingNode {
+export abstract class AgentStreamingNode extends Node<{ text: string }> implements StreamingNode {
   constructor(
     protected readonly llmService: LlmService,
     @Optional() protected readonly tracing?: TracingService,

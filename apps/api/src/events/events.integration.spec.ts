@@ -113,7 +113,8 @@ describe('Events integration (Redis + Postgres)', () => {
 
     const connection = { host: redisHost, port: redisPort };
 
-    const echoWorkflow = new EchoWorkflow(new EchoNode(), new UpperCaseNode());
+    const echoNode = new EchoNode();
+    const echoWorkflow = new EchoWorkflow(echoNode, new UpperCaseNode(echoNode));
     workflowRegistry = new WorkflowRegistry();
     workflowRegistry.register(EchoWorkflow.TYPE, echoWorkflow);
 

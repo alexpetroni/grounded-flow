@@ -35,12 +35,13 @@ discriminated on `kind`; `dispatch()` is a `switch`; the empty `ConcurrentNode` 
 deleted; the `run`/`runStream` prologue (validate once, memoized) is shared. All regression tests
 were migrated to the new schema shape.
 
-- **Deferred (optional) — typed node outputs.** Step 7 suggested keying
-  `TaskContext.getOutput`/`setOutput` off the node instance so `ctx.getOutput<T>('Token')` casts
-  disappear at call sites. Skipped: `getOutput<T>(token: string)` is called by string token across
-  `libs/rag`, `apps/api`, `apps/worker`, and every `workflows/*` node/spec — converting the API
-  would ripple far outside `libs/core` and balloon that phase's diff well past "discriminated-union
-  schema." Left as a follow-up for a dedicated phase if desired.
+- **Typed node outputs — applied as a follow-up** (was deferred here). `Node<TOutput>` now
+  types `saveOutput` on the write side and exposes `readOutput(ctx)` / `outputKey` to readers;
+  cross-node consumers inject the producing node and read through its key (e.g. `UpperCaseNode`
+  reads `EchoNode`), so the hand-written `getOutput<Shape>('Token')` casts are gone from
+  production code. The string form of `TaskContext.getOutput` remains for dynamic tokens
+  (sub-workflow children) and test assertions. Regression spec:
+  `libs/core/src/__tests__/typed-output.spec.ts` (includes a compile-time wrong-shape check).
 
 ## R5 — Build & test infrastructure
 

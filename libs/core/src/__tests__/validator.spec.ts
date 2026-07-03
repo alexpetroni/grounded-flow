@@ -10,7 +10,7 @@ function makeNode(token: string): Node {
     token,
     process: vi.fn().mockResolvedValue(undefined),
     saveOutput: vi.fn(),
-    getOutput: vi.fn(),
+    readOutput: vi.fn(),
     cleanup: vi.fn().mockResolvedValue(undefined),
   } as unknown as Node;
 }

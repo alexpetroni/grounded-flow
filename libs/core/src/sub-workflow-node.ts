@@ -37,7 +37,10 @@ export interface SubWorkflowResult {
  * to derive its input event from the parent context (`buildChildEvent`).
  */
 @Injectable()
-export abstract class SubWorkflowNode extends Node implements SubWorkflowReference {
+export abstract class SubWorkflowNode
+  extends Node<SubWorkflowResult>
+  implements SubWorkflowReference
+{
   abstract readonly childWorkflowType: string;
 
   constructor(protected readonly registry: WorkflowRegistry) {
@@ -61,9 +64,11 @@ export abstract class SubWorkflowNode extends Node implements SubWorkflowReferen
     return ctx;
   }
 
-  /** Read a specific child node's output from this node's completed result. */
+  /**
+   * Read a specific child node's output from this node's completed result.
+   * Child-workflow outputs are dynamic by nature, so the caller asserts `T`.
+   */
   getChildOutput<T>(ctx: TaskContext, childToken: string): T | undefined {
-    const result = this.getOutput<SubWorkflowResult | undefined>(ctx);
-    return result?.nodes[childToken] as T | undefined;
+    return this.readOutput(ctx)?.nodes[childToken] as T | undefined;
   }
 }

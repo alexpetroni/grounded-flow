@@ -8,7 +8,7 @@ import { LlmService } from './llm.service';
 import { generateStructured } from './generate-structured';
 
 @Injectable()
-export abstract class AgentNode<TOutput = unknown> extends Node {
+export abstract class AgentNode<TOutput = unknown> extends Node<TOutput> {
   abstract readonly outputSchema: z.ZodType<TOutput>;
 
   constructor(
