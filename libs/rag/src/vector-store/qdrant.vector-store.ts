@@ -82,37 +82,6 @@ export class QdrantVectorStore implements VectorStore {
     });
   }
 
-  async search(
-    embedding: { dense: { values: number[] }; sparse: { indices: number[]; values: number[] } },
-    topK: number,
-    filter?: Record<string, unknown>,
-  ): Promise<SearchResult[]> {
-    const qdrantFilter = filter ? buildFilter(filter) : undefined;
-
-    const results = await this.client.query(this.collectionName, {
-      prefetch: [
-        {
-          query: embedding.dense.values,
-          using: DENSE_VECTOR,
-          limit: topK * 2,
-          ...(qdrantFilter ? { filter: qdrantFilter } : {}),
-        },
-        {
-          query: { indices: embedding.sparse.indices, values: embedding.sparse.values },
-          using: SPARSE_VECTOR,
-          limit: topK * 2,
-          ...(qdrantFilter ? { filter: qdrantFilter } : {}),
-        },
-      ],
-      query: { fusion: 'rrf' },
-      limit: topK,
-      with_payload: true,
-      ...(qdrantFilter ? { filter: qdrantFilter } : {}),
-    });
-
-    return results.points.map(mapPoint);
-  }
-
   async searchDense(
     dense: number[],
     limit: number,

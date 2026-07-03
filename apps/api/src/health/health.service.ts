@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '@app/config';
+import type Redis from 'ioredis';
 
 export interface HealthStatus {
   status: 'ok' | 'degraded';
@@ -47,17 +48,19 @@ export class HealthService {
   }
 
   private async checkRedis(): Promise<'ok' | 'error'> {
+    let client: Redis | undefined;
     try {
       const url = this.config.get('REDIS_URL', { infer: true });
-      const { createClient } = await import('redis');
-      const client = createClient({ url });
+      const { default: IORedis } = await import('ioredis');
+      client = new IORedis(url, { lazyConnect: true, maxRetriesPerRequest: 0 });
       await client.connect();
       await client.ping();
-      await client.disconnect();
       return 'ok';
     } catch (err) {
       this.logger.warn(`Redis health check failed: ${(err as Error).message}`);
       return 'error';
+    } finally {
+      client?.disconnect();
     }
   }
 

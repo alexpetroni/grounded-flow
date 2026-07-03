@@ -2,25 +2,22 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import { QdrantClient } from '@qdrant/js-client-rest';
-import { uuidv7 } from 'uuidv7';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
 import {
   QdrantVectorStore,
   FakeEmbedder,
-  Chunker,
-  getLoader,
   HybridRetriever,
   aggregate,
   checkRatchet,
   checkThresholds,
 } from '@app/rag';
-import type { ChunkPoint, EvalMetrics, RankedRelevance, RetrievalMode } from '@app/rag';
+import type { EvalMetrics, RankedRelevance, RetrievalMode } from '@app/rag';
 import { detectRagNetwork, attachOrExpose, endpointOf } from '../helpers/rag-network';
+import { ingestCorpus } from '../helpers/corpus';
 
 const COLLECTION = 'rag_eval';
 const DIMS = 4;
-const CORPUS_DIR = path.resolve(__dirname, '../fixtures/corpus');
 const DATASET = path.resolve(__dirname, 'dataset.jsonl');
 const BASELINE = path.resolve(__dirname, 'baseline.json');
 
@@ -37,12 +34,6 @@ interface DatasetRow {
   goldSource: string;
   goldAnswer: string;
 }
-
-const CORPUS: Array<{ file: string; mime: string }> = [
-  { file: 'introduction.md', mime: 'text/markdown' },
-  { file: 'rag-overview.txt', mime: 'text/plain' },
-  { file: 'vectors.html', mime: 'text/html' },
-];
 
 let container: StartedTestContainer;
 let retriever: HybridRetriever;
@@ -64,29 +55,6 @@ async function startQdrant(): Promise<{ host: string; port: number }> {
   return endpointOf(container, net, 6333);
 }
 
-async function ingest(store: QdrantVectorStore): Promise<void> {
-  const chunker = new Chunker({ chunkTokens: 60, overlapTokens: 10 });
-  for (const { file, mime } of CORPUS) {
-    const buf = readFileSync(path.join(CORPUS_DIR, file));
-    const loaded = await getLoader(mime).load(buf, file, {});
-    const raw = chunker.chunk(loaded.text);
-    const embeds = await embedder.embed(raw.map((c) => c.text));
-    const points: ChunkPoint[] = raw.map((c, i) => {
-      const id = uuidv7();
-      return {
-        id,
-        chunkId: id,
-        documentId: file, // gold relevance is keyed on the source document
-        ordinal: c.ordinal,
-        text: c.text,
-        metadata: { source: file },
-        embedding: embeds[i]!,
-      };
-    });
-    await store.upsert(points);
-  }
-}
-
 function loadDataset(): DatasetRow[] {
   return readFileSync(DATASET, 'utf8')
     .split('\n')
@@ -104,7 +72,7 @@ describe('RAG eval harness', () => {
     const client = new QdrantClient({ url: `http://${host}:${port}`, checkCompatibility: false });
     const store = new QdrantVectorStore(client, COLLECTION);
     await store.ensureCollection(DIMS);
-    await ingest(store);
+    await ingestCorpus(store, embedder);
     retriever = new HybridRetriever(store, 10);
 
     dataset = loadDataset();

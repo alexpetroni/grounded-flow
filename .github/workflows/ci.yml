@@ -56,7 +56,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.api
+          file: docker/Dockerfile
+          build-args: APP=api
           push: false
           tags: rag-api:ci
 
@@ -64,7 +65,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile.worker
+          file: docker/Dockerfile
+          build-args: APP=worker
           push: false
           tags: rag-worker:ci
 
