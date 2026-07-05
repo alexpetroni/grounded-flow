@@ -6,9 +6,11 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import type { Env } from '@app/config';
+import { isPublic } from './api-key.guard';
 
 interface Bucket {
   count: number;
@@ -28,6 +30,7 @@ export class RateLimitGuard implements CanActivate {
 
   constructor(
     private readonly config: ConfigService<Env, true>,
+    private readonly reflector: Reflector,
     // Not a DI token — @Optional() lets Nest pass undefined so the default applies;
     // tests inject a deterministic clock.
     @Optional() private readonly now: () => number = () => Date.now(),
@@ -36,6 +39,10 @@ export class RateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const max = this.config.get('RATE_LIMIT_MAX', { infer: true });
     if (!max || max <= 0) return true; // disabled
+
+    // Health probes must never be throttled — a rate-limited liveness check
+    // reads as an unhealthy container.
+    if (isPublic(this.reflector, context)) return true;
 
     const windowMs = this.config.get('RATE_LIMIT_WINDOW_MS', { infer: true });
     const req = context.switchToHttp().getRequest<Request>();

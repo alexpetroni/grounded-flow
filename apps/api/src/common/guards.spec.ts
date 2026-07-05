@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import type { ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { ApiKeyGuard } from './api-key.guard';
 import { RateLimitGuard } from './rate-limit.guard';
 
@@ -8,25 +9,31 @@ function configOf(values: Record<string, unknown>): ConfigService {
   return { get: (k: string) => values[k] } as unknown as ConfigService;
 }
 
+function reflectorOf(publicRoute = false): Reflector {
+  return { getAllAndOverride: () => publicRoute } as unknown as Reflector;
+}
+
 function ctxWith(req: Record<string, unknown>): ExecutionContext {
   return {
     switchToHttp: () => ({ getRequest: () => req }),
+    getHandler: () => undefined,
+    getClass: () => undefined,
   } as unknown as ExecutionContext;
 }
 
 describe('ApiKeyGuard', () => {
   it('allows all requests when API_KEY is unset', () => {
-    const guard = new ApiKeyGuard(configOf({ API_KEY: '' }));
+    const guard = new ApiKeyGuard(configOf({ API_KEY: '' }), reflectorOf());
     expect(guard.canActivate(ctxWith({ headers: {} }))).toBe(true);
   });
 
   it('accepts a matching x-api-key header', () => {
-    const guard = new ApiKeyGuard(configOf({ API_KEY: 'secret' }));
+    const guard = new ApiKeyGuard(configOf({ API_KEY: 'secret' }), reflectorOf());
     expect(guard.canActivate(ctxWith({ headers: { 'x-api-key': 'secret' } }))).toBe(true);
   });
 
   it('rejects a missing or wrong key when enabled', () => {
-    const guard = new ApiKeyGuard(configOf({ API_KEY: 'secret' }));
+    const guard = new ApiKeyGuard(configOf({ API_KEY: 'secret' }), reflectorOf());
     expect(() => guard.canActivate(ctxWith({ headers: {} }))).toThrow();
     expect(() => guard.canActivate(ctxWith({ headers: { 'x-api-key': 'nope' } }))).toThrow();
   });
@@ -34,7 +41,7 @@ describe('ApiKeyGuard', () => {
 
 describe('RateLimitGuard', () => {
   it('allows all when RATE_LIMIT_MAX is 0 (disabled)', () => {
-    const guard = new RateLimitGuard(configOf({ RATE_LIMIT_MAX: 0 }));
+    const guard = new RateLimitGuard(configOf({ RATE_LIMIT_MAX: 0 }), reflectorOf());
     for (let i = 0; i < 100; i++) {
       expect(guard.canActivate(ctxWith({ ip: '1.1.1.1' }))).toBe(true);
     }
@@ -44,6 +51,7 @@ describe('RateLimitGuard', () => {
     const clock = 1000;
     const guard = new RateLimitGuard(
       configOf({ RATE_LIMIT_MAX: 2, RATE_LIMIT_WINDOW_MS: 60000 }),
+      reflectorOf(),
       () => clock,
     );
     const ctx = ctxWith({ ip: '2.2.2.2' });
@@ -56,6 +64,7 @@ describe('RateLimitGuard', () => {
     let clock = 0;
     const guard = new RateLimitGuard(
       configOf({ RATE_LIMIT_MAX: 1, RATE_LIMIT_WINDOW_MS: 1000 }),
+      reflectorOf(),
       () => clock,
     );
     const ctx = ctxWith({ ip: '3.3.3.3' });
@@ -66,9 +75,47 @@ describe('RateLimitGuard', () => {
   });
 
   it('tracks limits per client IP independently', () => {
-    const guard = new RateLimitGuard(configOf({ RATE_LIMIT_MAX: 1, RATE_LIMIT_WINDOW_MS: 60000 }));
+    const guard = new RateLimitGuard(
+      configOf({ RATE_LIMIT_MAX: 1, RATE_LIMIT_WINDOW_MS: 60000 }),
+      reflectorOf(),
+    );
     expect(guard.canActivate(ctxWith({ ip: 'a' }))).toBe(true);
     expect(guard.canActivate(ctxWith({ ip: 'b' }))).toBe(true);
     expect(() => guard.canActivate(ctxWith({ ip: 'a' }))).toThrow();
+  });
+});
+
+// Regression: /health sat behind the global guards — setting API_KEY (or a
+// rate limit) made unauthenticated infrastructure probes fail and bricked the
+// container healthcheck.
+describe('@Public() exemption', () => {
+  it('ApiKeyGuard passes public routes without a key', () => {
+    const guard = new ApiKeyGuard(configOf({ API_KEY: 'secret' }), reflectorOf(true));
+    expect(guard.canActivate(ctxWith({ headers: {} }))).toBe(true);
+  });
+
+  it('RateLimitGuard never throttles public routes', () => {
+    const guard = new RateLimitGuard(
+      configOf({ RATE_LIMIT_MAX: 1, RATE_LIMIT_WINDOW_MS: 60000 }),
+      reflectorOf(true),
+    );
+    const ctx = ctxWith({ ip: '9.9.9.9' });
+    expect(guard.canActivate(ctx)).toBe(true);
+    expect(guard.canActivate(ctx)).toBe(true);
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+});
+
+describe('ApiKeyGuard header edge cases', () => {
+  it('rejects a duplicated x-api-key header (string[])', () => {
+    const guard = new ApiKeyGuard(configOf({ API_KEY: 'secret' }), reflectorOf());
+    expect(() =>
+      guard.canActivate(ctxWith({ headers: { 'x-api-key': ['secret', 'secret'] } })),
+    ).toThrow();
+  });
+
+  it('rejects a key of different length without throwing internally', () => {
+    const guard = new ApiKeyGuard(configOf({ API_KEY: 'secret' }), reflectorOf());
+    expect(() => guard.canActivate(ctxWith({ headers: { 'x-api-key': 'se' } }))).toThrow();
   });
 });

@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import { Queue, Worker } from 'bullmq';
+import type { Job } from 'bullmq';
 import type { ConfigService } from '@nestjs/config';
-import { DeadLetterService } from './dead-letter.service';
+import { DeadLetterService, MAX_DLQ_ENTRIES } from './dead-letter.service';
 import { detectRagNetwork, attachOrExpose, endpointOf } from '../../../test/helpers/rag-network';
 
 let container: StartedTestContainer;
@@ -57,7 +58,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await dls?.onModuleDestroy();
   await container?.stop();
-});
+}, 60_000);
 
 describe('Worker resilience + dead-letter', () => {
   it('retries then reaches a terminal failed status and dead-letters (never stuck pending)', async () => {
@@ -132,6 +133,63 @@ describe('Worker resilience + dead-letter', () => {
 
     await worker.close();
     await queue.close();
+    await dlq.close();
+  });
+
+  // A terminal-failed job shaped like what BullMQ hands the 'failed' handler.
+  const terminalJob = (id: string): Job =>
+    ({ id, data: { n: 1 }, attemptsMade: 2, opts: { attempts: 2 } }) as unknown as Job;
+
+  it('caps the DLQ across waiting and paused states, dropping the oldest loudly', async () => {
+    const QUEUE = 'resil-cap';
+    const dlq = new Queue(DeadLetterService.dlqName(QUEUE), { connection });
+    // Seed to exactly the cap, then pause the DLQ (an operator inspecting
+    // it mid-incident) — new entries land in 'paused', which the cap must
+    // still see.
+    await dlq.addBulk(
+      Array.from({ length: MAX_DLQ_ENTRIES }, (_, i) => ({
+        name: 'dead-letter',
+        data: { seed: i },
+        opts: { removeOnComplete: false, removeOnFail: false },
+      })),
+    );
+    await dlq.pause();
+
+    await dls.deadLetter(QUEUE, terminalJob('over-cap'), new Error('boom'));
+
+    expect(await dlq.getJobCountByTypes('waiting', 'paused')).toBe(MAX_DLQ_ENTRIES);
+    const kept = await dlq.getJobs(['waiting', 'paused'], 0, MAX_DLQ_ENTRIES, true);
+    const datas = kept.map((j) => j.data as { seed?: number; originalJobId?: string });
+    expect(datas.some((d) => d.originalJobId === 'over-cap')).toBe(true); // newest kept
+    expect(datas.some((d) => d.seed === 0)).toBe(false); // oldest dropped
+
+    // Drain the 1,000 seeded records so suite teardown stays fast.
+    await dlq.obliterate({ force: true });
+    await dlq.close();
+  }, 60_000);
+
+  // Regression: the trim runs inside the worker's 'failed' handler, which
+  // nothing awaits or catches — a transient Redis error there must not become
+  // an unhandled rejection that kills the worker process.
+  it('does not reject when the cap trim fails after a successful add', async () => {
+    const QUEUE = 'resil-trim-error';
+    await dls.deadLetter(QUEUE, terminalJob('j1'), new Error('boom'));
+
+    const internal = (dls as unknown as { queues: Map<string, Queue> }).queues.get(
+      DeadLetterService.dlqName(QUEUE),
+    )!;
+    const spy = vi
+      .spyOn(internal, 'getJobCountByTypes')
+      .mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(
+      dls.deadLetter(QUEUE, terminalJob('j2'), new Error('boom')),
+    ).resolves.not.toThrow();
+    spy.mockRestore();
+
+    // Both records were still durably added.
+    const dlq = new Queue(DeadLetterService.dlqName(QUEUE), { connection });
+    expect(await dlq.getJobCountByTypes('waiting', 'paused')).toBe(2);
     await dlq.close();
   });
 });

@@ -6,6 +6,6 @@ import { StreamingWorkflow } from './streaming.workflow';
 @Module({
   imports: [LlmModule],
   providers: [StreamingChatNode, StreamingWorkflow],
-  exports: [StreamingWorkflow],
+  exports: [StreamingWorkflow, StreamingChatNode],
 })
 export class StreamingModule {}

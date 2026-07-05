@@ -10,7 +10,28 @@
       "Bash(docker compose *)",
       "Bash(docker run *)",
       "Bash(PHASE=1 docker compose -f docker-compose.builder.yml run --rm -T builder)",
-      "Bash(echo \"EXIT_CODE=$?\")"
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(bash scripts/refactor.sh)",
+      "Bash(git worktree *)",
+      "Bash(git -C /tmp/claude-1000/-home-alex-work-grounded-flow/af065a00-93a0-44de-b0a8-fe91a85a077b/scratchpad/verify show refactor/architecture:docs/REFACTOR-STATUS.md)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm test:cov)",
+      "Bash(echo \"cov exit: $?\")",
+      "Bash(pnpm test:e2e)",
+      "Bash(docker build *)",
+      "Bash(SMOKE_DOWN=1 bash scripts/smoke.sh)",
+      "Bash(git checkout *)",
+      "Bash(git merge --no-ff refactor/architecture -m ' *)",
+      "Bash(git push *)",
+      "Bash(python3 -)",
+      "Bash(python3 *)",
+      "Bash(pnpm exec *)",
+      "Bash(pnpm test *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s \"https://api.github.com/repos/alexpetroni/grounded-flow/actions/runs/28653936700/jobs\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

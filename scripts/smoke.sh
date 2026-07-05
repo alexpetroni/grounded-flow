@@ -99,11 +99,19 @@ grounded=$(jget "d['grounded']" < /tmp/smoke_rag.json)
 [[ "$grounded" == "True" ]] || fail "RAG answer not grounded"
 ok "RAG answer grounded with $n_cites citation(s)"
 
-# 5. Streaming chat completion ----------------------------------------------
+# 5. Chat completion, JSON body (OpenAI default: no stream field) -----------
+log "Requesting a non-streaming chat completion"
+completion=$(curl -s -X POST "$API_URL/v1/chat/completions" \
+  -H 'content-type: application/json' \
+  -d '{"messages":[{"role":"user","content":"hello"}]}')
+echo "$completion" | grep -q '"object":"chat.completion"' || fail "no JSON chat.completion body"
+ok "omitted stream produced a single JSON completion"
+
+# 6. Streaming chat completion ----------------------------------------------
 log "Streaming a chat completion"
 stream=$(curl -s -N -X POST "$API_URL/v1/chat/completions" \
   -H 'content-type: application/json' \
-  -d '{"messages":[{"role":"user","content":"hello"}]}')
+  -d '{"messages":[{"role":"user","content":"hello"}],"stream":true}')
 echo "$stream" | grep -q 'data: ' || fail "no SSE data frames"
 echo "$stream" | grep -q '\[DONE\]' || fail "stream did not terminate with [DONE]"
 ok "chat stream produced SSE frames terminated by [DONE]"

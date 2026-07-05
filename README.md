@@ -104,7 +104,7 @@ pnpm eval                       # RAG quality vs baseline (needs API keys)
 | `POST /events` · `GET /events/:id` | Submit a workflow event (async) and poll its status + result |
 | `POST /documents` · `GET /documents/:id` | Ingest a document (base64) and poll ingestion status |
 | `POST /rag/query` | Hybrid retrieve → rerank → grounded, cited answer |
-| `POST /v1/chat/completions` | OpenAI-compatible streaming chat (SSE) |
+| `POST /v1/chat/completions` | OpenAI-compatible chat (JSON; SSE with `stream:true`) |
 
 All bodies are Zod-validated. A payload-size limit (`API_BODY_LIMIT`), an optional in-memory
 rate limiter (`RATE_LIMIT_MAX`, off by default), and an optional API-key guard (`API_KEY`, off by

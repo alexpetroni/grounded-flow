@@ -643,14 +643,15 @@ keyword-only, `"hybrid"` (default) to fuse both with Reciprocal Rank Fusion.
 
 ## 7. OpenAI-compatible chat endpoint
 
-`POST /v1/chat/completions` streams a chat completion as Server-Sent Events in the OpenAI
-`chat.completion.chunk` shape — so existing OpenAI SDK clients can point at it. It runs the
-registered `streaming-chat` workflow via `runStream()`.
+`POST /v1/chat/completions` follows the OpenAI protocol: by default (or with `stream:false`)
+it returns one `chat.completion` JSON body via the workflow's `run()`; with `stream:true` it
+streams Server-Sent Events in the `chat.completion.chunk` shape via `runStream()` — so existing
+OpenAI SDK clients can point at it either way.
 
 ```bash
 curl -N -s -X POST http://127.0.0.1:8080/v1/chat/completions \
   -H 'content-type: application/json' \
-  -d '{"messages":[{"role":"user","content":"Explain hybrid search in one sentence."}]}'
+  -d '{"messages":[{"role":"user","content":"Explain hybrid search in one sentence."}],"stream":true}'
 ```
 
 ```
@@ -712,7 +713,7 @@ logged warning; it never crashes boot. Tracing is a NoOp until both Langfuse key
 | `POST /documents` | `{source, mimeType, content(base64), metadata?}` | `202 {id, status}` |
 | `GET /documents/:id` | — | the `Document` row (incl. `status`) |
 | `POST /rag/query` | `{query, topK?, topN?, filter?, mode?}` | `RagQueryResult` (answer + grounded citations) |
-| `POST /v1/chat/completions` | `{messages, model?, stream?}` | SSE stream of `chat.completion.chunk` + `[DONE]` |
+| `POST /v1/chat/completions` | `{messages, model?, stream?}` | `chat.completion` JSON body; with `stream:true`, SSE of `chat.completion.chunk` + `[DONE]` |
 
 Every body is Zod-validated → malformed input yields `400` (never a crash). Global guards: payload
 size limit (`API_BODY_LIMIT`), optional in-memory rate limiter (`RATE_LIMIT_MAX`), optional API-key
